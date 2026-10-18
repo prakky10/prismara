@@ -454,7 +454,7 @@ export function createWorldTerrain(map: MapDef, reducedEffects = false): WorldTe
     }
     buildings.push({
       meshes,
-      parts: [{ material: bodyM, min: 0.4 }, { material: glowMesh, min: 0.4 }, { material: roofM, min: 0.1 }],
+      parts: [{ material: bodyM, min: 0.42 }, { material: glowMesh, min: 0.42 }, { material: roofM, min: 0.42 }],
       fade: 0,
     });
   };

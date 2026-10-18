@@ -16,12 +16,26 @@ import { autosave } from '../core/SaveManager';
 import { toast } from '../ui/Popups';
 import { ITEMS, type ItemId } from '../data/items';
 import { QUESTS, TROPHIES, claimQuest, getChapter, questStatus } from '../world/campaign';
+import { JOURNAL_PAGES, knownLore } from '../world/story/journal';
 
-type JournalTab = 'journal' | 'trophies' | 'map';
+const PAGE_LABELS = ['Page 1', 'Page 2', 'Page 3', 'Page 4', 'Page 5', 'Page 6', 'Page 7', 'Last entry'];
 
-const TAB_ORDER: JournalTab[] = ['journal', 'trophies', 'map'];
+/** Deterministic ragged tear for locked pages. */
+function tornEdge(seed: number, steps: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const n = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+    out.push((n - Math.floor(n)) * 5 - 1);
+  }
+  return out;
+}
+
+type JournalTab = 'journal' | 'pages' | 'trophies' | 'map';
+
+const TAB_ORDER: JournalTab[] = ['journal', 'pages', 'trophies', 'map'];
 const TAB_LABELS: Record<JournalTab, string> = {
   journal: 'JOURNAL',
+  pages: 'PAGES',
   trophies: 'TROPHIES',
   map: 'REGION',
 };
@@ -99,6 +113,14 @@ export class JournalScene extends Phaser.Scene {
   private trophyCursor = 0;
   private trophyDetail!: Phaser.GameObjects.Text;
 
+  private pagesGroup!: Phaser.GameObjects.Container;
+  private pageRows: Array<{ bg: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text; found: boolean }> = [];
+  private pageCursor = 0;
+  private pageTitle!: Phaser.GameObjects.Text;
+  private pageBody!: Phaser.GameObjects.Text;
+  private pageLore!: Phaser.GameObjects.Text;
+  private pageCount!: Phaser.GameObjects.Text;
+
   private regionGroup!: Phaser.GameObjects.Container;
   private regionDetail!: Phaser.GameObjects.Text;
 
@@ -118,6 +140,8 @@ export class JournalScene extends Phaser.Scene {
     this.headerTexts = [];
     this.questRows = [];
     this.trophyCards = [];
+    this.pageRows = [];
+    this.pageCursor = 0;
 
     this.controls = new InputManager(this);
     this.cameras.main.setBackgroundColor('#0b1020');
@@ -128,8 +152,10 @@ export class JournalScene extends Phaser.Scene {
     this.journalGroup = this.add.container(0, 0);
     this.trophyGroup = this.add.container(0, 0);
     this.regionGroup = this.add.container(0, 0);
+    this.pagesGroup = this.add.container(0, 0);
 
     this.buildJournalTab();
+    this.buildPagesTab();
     this.buildTrophyTab();
     this.buildRegionTab();
 
@@ -169,7 +195,7 @@ export class JournalScene extends Phaser.Scene {
       .setOrigin(0, 0.5);
 
     TAB_ORDER.forEach((tab, index) => {
-      const x = VIEW_WIDTH / 2 - 130 + index * 130;
+      const x = VIEW_WIDTH / 2 - 180 + index * 120;
       const text = this.add
         .text(x, 32, TAB_LABELS[tab], {
           fontFamily: FONTS.body,
@@ -179,7 +205,7 @@ export class JournalScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
       const zone = this.add
-        .zone(x, 32, 120, 44)
+        .zone(x, 32, 110, 44)
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
       zone.on('pointerdown', () => {
@@ -927,6 +953,136 @@ export class JournalScene extends Phaser.Scene {
     this.refreshTrophies();
   }
 
+  /* -------------------------------------------------------------- pages -- */
+
+  private buildPagesTab(): void {
+    const listX = 40;
+    const listW = 250;
+    const rowH = 44;
+    const top = 92;
+    const detailX = 312;
+    const detailW = VIEW_WIDTH - detailX - 40;
+
+    const rows = this.add.graphics();
+    this.pagesGroup.add(rows);
+    this.pagesGroup.add(this.drawPanel(detailX, top - 8, detailW, 262));
+
+    JOURNAL_PAGES.forEach((_, index) => {
+      const y = top + index * rowH;
+      const bg = this.add.graphics();
+      const label = this.add
+        .text(listX + 48, y + rowH / 2 - 3, '', { fontFamily: FONTS.display, fontSize: '16px', color: '#dce6f7' })
+        .setOrigin(0, 0.5);
+      const zone = this.add
+        .zone(listX + listW / 2, y + rowH / 2 - 3, listW, rowH - 6)
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+      zone.on('pointerover', () => {
+        if (this.tab === 'pages') this.setPageCursor(index);
+      });
+      zone.on('pointerdown', () => {
+        if (this.tab === 'pages') this.setPageCursor(index);
+      });
+      this.pagesGroup.add([bg, label, zone]);
+      this.pageRows.push({ bg, label, found: false });
+    });
+
+    this.pageCount = this.add
+      .text(listX, top + JOURNAL_PAGES.length * rowH + 2, '', { fontFamily: FONTS.body, fontSize: '12px', color: '#9fb0cc' });
+    this.pageTitle = this.add.text(detailX + 20, top + 6, '', {
+      fontFamily: FONTS.display,
+      fontSize: '20px',
+      color: '#ffd60a',
+    });
+    this.pageBody = this.add.text(detailX + 20, top + 44, '', {
+      fontFamily: FONTS.body,
+      fontSize: '19px',
+      fontStyle: 'italic',
+      color: '#f2f6ff',
+      lineSpacing: 6,
+      wordWrap: { width: detailW - 40 },
+    });
+    const loreHead = this.add.text(detailX, top + 270, 'WHAT WE KNOW', {
+      fontFamily: FONTS.body,
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#7fffe5',
+    });
+    this.pageLore = this.add.text(detailX, top + 290, '', {
+      fontFamily: FONTS.body,
+      fontSize: '12px',
+      color: '#9fb0cc',
+      lineSpacing: 3,
+      wordWrap: { width: detailW },
+    });
+    this.pagesGroup.add([this.pageCount, this.pageTitle, this.pageBody, loreHead, this.pageLore]);
+    this.refreshPages();
+  }
+
+  private refreshPages(): void {
+    const top = 92;
+    const listX = 40;
+    const listW = 250;
+    const rowH = 44;
+    let found = 0;
+    JOURNAL_PAGES.forEach((page, index) => {
+      const row = this.pageRows[index];
+      if (!row) return;
+      row.found = Game.state.getFlag(page.flag);
+      if (row.found) found++;
+      const y = top + index * rowH;
+      const selected = index === this.pageCursor;
+      const g = row.bg;
+      g.clear();
+      if (row.found) {
+        g.fillStyle(selected ? 0x2a3a64 : 0x18213b, 0.95);
+        g.fillRoundedRect(listX, y, listW, rowH - 6, 6);
+        g.lineStyle(selected ? 2 : 1, selected ? 0xffd60a : 0x3d5480, 0.9);
+        g.strokeRoundedRect(listX, y, listW, rowH - 6, 6);
+        g.fillStyle(0xf1e4be, 1);
+        g.fillRect(listX + 12, y + 8, 22, 24);
+        g.fillStyle(0x7a6a44, 1);
+        for (let l = 0; l < 4; l++) g.fillRect(listX + 15, y + 12 + l * 5, 16, 1);
+      } else {
+        // Torn placeholder: a jagged strip of paper.
+        const edge = tornEdge(index, 10);
+        g.fillStyle(selected ? 0x2a2f44 : 0x161c2e, 0.95);
+        g.beginPath();
+        g.moveTo(listX, y);
+        edge.forEach((e, i) => g.lineTo(listX + (i / 10) * listW, y + e));
+        g.lineTo(listX + listW, y + rowH - 6);
+        for (let i = 10; i >= 0; i--) g.lineTo(listX + (i / 10) * listW, y + rowH - 6 - edge[10 - i] * 0.8);
+        g.closePath();
+        g.fillPath();
+        g.lineStyle(selected ? 2 : 1, selected ? 0xffd60a : 0x36445f, 0.9);
+        g.strokePath();
+        g.fillStyle(0x4a4f63, 1);
+        g.fillTriangle(listX + 12, y + 32, listX + 34, y + 30, listX + 22, y + 10);
+      }
+      row.label.setText(row.found ? PAGE_LABELS[index] : 'Torn page');
+      row.label.setColor(row.found ? (selected ? '#ffd60a' : '#dce6f7') : '#6d7d99');
+    });
+    this.pageCount.setText(`${found}/${JOURNAL_PAGES.length} pages found`);
+
+    const page = JOURNAL_PAGES[this.pageCursor];
+    const open = page && Game.state.getFlag(page.flag);
+    this.pageTitle.setText(open ? `${PAGE_LABELS[this.pageCursor]} — Edda’s journal` : 'A torn page');
+    this.pageBody.setText(
+      open
+        ? `“${page.text}”`
+        : 'The paper is ripped away here. Something in Prismara is still holding this page.',
+    );
+    this.pageBody.setColor(open ? '#f2f6ff' : '#6d7d99');
+    const lore = knownLore(Game.state).slice(-4);
+    this.pageLore.setText(lore.length ? lore.map((l) => '• ' + l).join('\n') : 'Nothing yet. Keep exploring.');
+  }
+
+  private setPageCursor(index: number): void {
+    if (index === this.pageCursor) return;
+    this.pageCursor = index;
+    this.refreshPages();
+  }
+
   /* ------------------------------------------------------------- region -- */
 
   private buildRegionTab(): void {
@@ -999,6 +1155,8 @@ export class JournalScene extends Phaser.Scene {
   private applyTab(): void {
     this.journalGroup.setVisible(this.tab === 'journal');
     this.trophyGroup.setVisible(this.tab === 'trophies');
+    this.pagesGroup.setVisible(this.tab === 'pages');
+    if (this.tab === 'pages') this.refreshPages();
     this.regionGroup.setVisible(this.tab === 'map');
     for (const entry of this.headerTexts) {
       entry.text.setColor(entry.tab === this.tab ? '#ffd60a' : '#7c8aa5');
@@ -1037,6 +1195,9 @@ export class JournalScene extends Phaser.Scene {
     if (vertical !== 0) {
       if (this.tab === 'journal') {
         this.setQuestCursor((this.questCursor + vertical + QUESTS.length) % QUESTS.length);
+        Audio.playSfx('cursor');
+      } else if (this.tab === 'pages') {
+        this.setPageCursor((this.pageCursor + vertical + JOURNAL_PAGES.length) % JOURNAL_PAGES.length);
         Audio.playSfx('cursor');
       } else if (this.tab === 'trophies') {
         this.setTrophyCursor((this.trophyCursor + vertical + TROPHIES.length) % TROPHIES.length);

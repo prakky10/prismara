@@ -1,10 +1,7 @@
 /**
- * Preload: bakes every creature's 3D portrait into a texture, paints the
- * biome tilesets, and shows an animated progress bar.
- *
- * Doing this once up front means battles and the overworld never stall. The
- * work is batched (a few creatures per frame) so the progress bar actually
- * animates between 3D renders.
+ * Preload: bakes the starters' 3D portraits, paints the biome tilesets and shows an
+ * animated progress bar. The rest of the roster is baked lazily (and warmed in the
+ * background under a frame-time budget) so startup stays fast.
  */
 
 import Phaser from 'phaser';
@@ -100,21 +97,8 @@ export class PreloadScene extends Phaser.Scene {
       });
     }
 
-    // Then everything else, skipping starters already queued.
-    for (const id of CREATURE_IDS) {
-      if (STARTERS.includes(id)) continue;
-      q.push(async () => {
-        await CreatureRig.preload(this, id, false);
-      });
-    }
-
-    // Shiny variants are generated lazily on first encounter, which keeps boot
-    // fast; only the starters get theirs up front for the title screen.
-    for (const id of STARTERS) {
-      q.push(async () => {
-        await CreatureRig.preload(this, id, true);
-      });
-    }
+    // Everything else (and shiny variants) is baked lazily on first use, and the rest of the
+    // roster is warmed in the background under a per-frame time budget after the title appears.
 
     // Tilesets and backgrounds are synchronous canvas painting.
     for (const biome of BIOMES) {
@@ -151,6 +135,10 @@ export class PreloadScene extends Phaser.Scene {
 
     // Try to start the music; if audio is still locked it will begin on the
     // player's first interaction instead.
+    CreatureRig.warmInBackground(
+      this,
+      CREATURE_IDS.filter((id) => !STARTERS.includes(id)),
+    );
     Audio.playMusic('title');
     this.scene.start(SCENES.title);
   }

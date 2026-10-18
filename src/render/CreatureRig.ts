@@ -14,7 +14,8 @@
 import Phaser from 'phaser';
 import { getSpecies } from '../data/creatures';
 import { ELEMENT_INFO } from '../data/types';
-import { renderCreaturePortrait } from './three/Portraits3D';
+import { hasCreaturePortrait, renderCreaturePortrait } from './three/Portraits3D';
+import { runWithinBudget } from './portraitCache';
 
 const ART_SIZE = 256;
 const GROUND = 256;
@@ -56,6 +57,8 @@ export class CreatureRig extends Phaser.GameObjects.Container {
 
     const species = getSpecies(speciesId);
 
+    // Lazy: any species not pre-rendered is baked (once, cached) the first time a rig needs it.
+    CreatureRig.ensureTexture(scene, speciesId, this.shiny);
     const image = scene.add.image(0, -ART_SIZE / 2, modelTextureKey(speciesId, this.shiny));
     image.setOrigin(0.5, 0.5);
     this.partImages.set('body', image);
@@ -75,9 +78,36 @@ export class CreatureRig extends Phaser.GameObjects.Container {
 
   /** Render the portrait this rig needs into a texture. Await before constructing. */
   static async preload(scene: Phaser.Scene, speciesId: string, shiny = false): Promise<void> {
+    CreatureRig.ensureTexture(scene, speciesId, shiny);
+  }
+
+  /** Synchronously make sure the portrait texture exists (cached, never rendered twice). */
+  static ensureTexture(scene: Phaser.Scene, speciesId: string, shiny = false): void {
     const key = modelTextureKey(speciesId, shiny);
     if (scene.textures.exists(key)) return;
     scene.textures.addCanvas(key, renderCreaturePortrait(speciesId, shiny));
+  }
+
+  /**
+   * Bake portraits in the background, a few per animation frame within `budgetMs`, so the rest of
+   * the roster is warm before a battle or the Dex needs it.
+   */
+  static warmInBackground(scene: Phaser.Scene, ids: readonly string[], budgetMs = 8): void {
+    const textures = scene.game.textures;
+    const queue: Array<() => void> = ids.map((id) => () => {
+      const key = modelTextureKey(id, false);
+      if (textures.exists(key) || hasCreaturePortrait(id, false)) return;
+      try {
+        textures.addCanvas(key, renderCreaturePortrait(id, false));
+      } catch (error) {
+        console.warn('Portrait warm-up skipped', id, error);
+      }
+    });
+    const tick = (): void => {
+      runWithinBudget(queue, budgetMs);
+      if (queue.length > 0) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   /** Preload a whole list of species (deduplicated). */

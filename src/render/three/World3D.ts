@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Biome } from '../tiles/TilePainter';
 import type { MapDef } from '../../world/maps';
+import { applyCutaway, projectBox, rectCoversPlayer, type CutawayUniforms, type NdcRect } from './occlusion';
 import { createWorldTerrain, type TerrainBuilding } from './WorldTerrain';
 import { animateRig, buildActor, disposeRig, type Rig } from './world/Actors';
 
@@ -69,6 +70,11 @@ export class World3D {
   private readonly occRay = new THREE.Raycaster();
   private readonly occTo = new THREE.Vector3();
   private readonly occDir = new THREE.Vector3();
+  private readonly bounds = new Map<TerrainBuilding, THREE.Box3>();
+  private readonly cuts = new Map<TerrainBuilding, CutawayUniforms>();
+  private readonly cutCenter = new THREE.Vector2();
+  private readonly cutRadius = new THREE.Vector2(0.2, 0.34);
+  private readonly rect: NdcRect = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
   private lastSeconds = 0;
   private snapped = false;
   private disposed = false;
@@ -108,7 +114,19 @@ export class World3D {
     this.terrain = createWorldTerrain(map, reducedEffects);
     this.scene.add(this.terrain.root);
     this.buildings = this.terrain.buildings;
+    this.terrain.root.updateMatrixWorld(true);
     for (const b of this.buildings) {
+      const box = new THREE.Box3();
+      for (const mesh of b.meshes) box.expandByObject(mesh);
+      this.bounds.set(b, box);
+      const uniforms: CutawayUniforms = {
+        uCutCenter: { value: this.cutCenter },
+        uCutRadius: { value: this.cutRadius },
+        uCutAmount: { value: 0 },
+        uCutKeep: { value: 0.45 },
+      };
+      this.cuts.set(b, uniforms);
+      for (const part of b.parts) applyCutaway(part.material, uniforms);
       for (const mesh of b.meshes) {
         this.occMeshes.push(mesh);
         this.occOwner.set(mesh, b);
@@ -175,34 +193,54 @@ export class World3D {
     this.torch?.position.set(tx, 2.2, tz + 0.4);
   }
 
-  /** Fade whole buildings (roof most, walls partly) that stand between the camera and the player. */
+  /**
+   * Cut a soft dithered window through any building that really covers the player on screen.
+   * A building only counts when its projected bounds contain the player's whole body and the
+   * camera ray to the body is blocked by its meshes, so neighbours that merely overlap stay solid.
+   */
   private updateOcclusion(tx: number, tz: number): void {
     if (this.buildings.length === 0) return;
+    this.camera.updateMatrixWorld(true);
+    this.camera.updateProjectionMatrix();
+    const samples: { x: number; y: number }[] = [];
+    for (const py of [0.3, 0.8, 1.3]) {
+      this.occTo.set(tx, py, tz).project(this.camera);
+      samples.push({ x: this.occTo.x, y: this.occTo.y });
+    }
+    this.cutCenter.set(samples[1].x, samples[1].y);
     const blocked = new Set<TerrainBuilding>();
-    for (const py of [0.25, 0.7, 1.15]) {
+    let rays = 0;
+    const hitsBy = new Map<TerrainBuilding, number>();
+    for (const py of [0.3, 0.8, 1.3]) {
       this.occTo.set(tx, py, tz);
       this.occDir.subVectors(this.occTo, this.camera.position);
       const dist = this.occDir.length();
       if (dist <= 0.15) continue;
+      rays++;
       this.occRay.set(this.camera.position, this.occDir.multiplyScalar(1 / dist));
       this.occRay.near = 0;
       this.occRay.far = dist - 0.1;
+      const seen = new Set<TerrainBuilding>();
       for (const hit of this.occRay.intersectObjects(this.occMeshes, false)) {
         const owner = this.occOwner.get(hit.object);
-        if (owner) blocked.add(owner);
+        if (owner && !seen.has(owner)) {
+          seen.add(owner);
+          hitsBy.set(owner, (hitsBy.get(owner) ?? 0) + 1);
+        }
       }
+    }
+    for (const [b, n] of hitsBy) {
+      const bounds = this.bounds.get(b);
+      if (bounds && n >= Math.min(2, rays) && rectCoversPlayer(projectBox(bounds, this.camera, this.rect), samples)) blocked.add(b);
     }
     for (const b of this.buildings) {
       const goal = blocked.has(b) ? 1 : 0;
-      b.fade += (goal - b.fade) * (goal ? 0.3 : 0.14);
+      b.fade += (goal - b.fade) * (goal ? 0.18 : 0.1);
       if (Math.abs(goal - b.fade) < 0.01) b.fade = goal;
-      for (const part of b.parts) {
-        const opacity = 1 - b.fade * (1 - part.min);
-        const m = part.material;
-        m.opacity = opacity;
-        const clear = opacity >= 0.999;
-        m.transparent = !clear;
-        m.depthWrite = clear;
+      const u = this.cuts.get(b);
+      if (u) {
+        u.uCutAmount.value = b.fade;
+        u.uCutKeep.value = b.parts[0]?.min ?? 0.45;
       }
     }
   }

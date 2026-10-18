@@ -15,9 +15,9 @@ import {
 } from 'three';
 import { createCreatureModel } from './CreatureModels';
 import { getThreeRenderer } from './ThreeSurface';
+import { PortraitCache } from '../portraitCache';
 
 const SIZE = 256;
-const MAX_PORTRAITS = 80;
 const FOOT_NDC_Y = -0.6;
 
 type Snap = {
@@ -34,7 +34,7 @@ type Snap = {
   colorSpace: string;
 };
 
-const cache = new Map<string, HTMLCanvasElement>();
+const cache = new PortraitCache<HTMLCanvasElement>(rasterisePortrait);
 
 function capture(renderer: WebGLRenderer): Snap {
   const clear = new Color();
@@ -191,19 +191,16 @@ function targetToCanvas(renderer: WebGLRenderer, target: WebGLRenderTarget): HTM
   return canvas;
 }
 
-function store(key: string, canvas: HTMLCanvasElement): void {
-  cache.set(key, canvas);
-  while (cache.size > MAX_PORTRAITS) {
-    const oldest = cache.keys().next().value;
-    if (oldest === undefined) return;
-    cache.delete(oldest);
-  }
+/** Cached portrait; each species/shiny is rasterised at most once and its 3D geometry freed straight after. */
+export function renderCreaturePortrait(speciesId: string, shiny = false): HTMLCanvasElement {
+  return cache.get(speciesId, shiny);
 }
 
-export function renderCreaturePortrait(speciesId: string, shiny = false): HTMLCanvasElement {
-  const key = `${shiny ? '1' : '0'}:${speciesId}`;
-  const hit = cache.get(key);
-  if (hit) return hit;
+export function hasCreaturePortrait(speciesId: string, shiny = false): boolean {
+  return cache.has(speciesId, shiny);
+}
+
+function rasterisePortrait(speciesId: string, shiny: boolean): HTMLCanvasElement {
   const renderer = getThreeRenderer();
   const model = createCreatureModel(speciesId, shiny);
   let target: WebGLRenderTarget | undefined;
@@ -232,7 +229,6 @@ export function renderCreaturePortrait(speciesId: string, shiny = false): HTMLCa
     renderer.clear(true, true, true);
     renderer.render(scene, camera);
     const canvas = targetToCanvas(renderer, target);
-    store(key, canvas);
     return canvas;
   } finally {
     if (snap) restore(renderer, snap);
