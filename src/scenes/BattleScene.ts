@@ -207,7 +207,7 @@ export class BattleScene extends Phaser.Scene {
     // Enemy panel top-left, player panel on the right above the text box:
     // the classic four-corner layout, arranged so nothing overlaps.
     this.enemyUi = new BattlePanel(this, 60, 40, 330, 74, 'enemy');
-    this.playerUi = new BattlePanel(this, VIEW_WIDTH - 400, 300, 340, 84, 'player');
+    this.playerUi = new BattlePanel(this, VIEW_WIDTH - 400, 280, 340, 84, 'player');
 
     this.weatherText = this.add
       .text(VIEW_WIDTH - 16, 14, '', {
