@@ -8,7 +8,7 @@
 
 import Phaser from 'phaser';
 import { SCENES } from './keys';
-import { COLORS, DEPTHS, FONTS, VIEW_HEIGHT, VIEW_WIDTH } from '../ui/Theme';
+import { COLORS, DEPTHS, FONTS } from '../ui/Theme';
 import { InputManager } from '../core/InputManager';
 import { TextBox } from '../ui/TextBox';
 import { Audio } from '../audio/AudioManager';
@@ -26,15 +26,26 @@ import { autotile } from '../render/tiles/autotiler';
 import { paintActor, frameFor, stepCycle, ACTOR_H, type Direction } from '../render/actors/ActorPainter';
 import { getEncounterZone, rollEncounter } from '../world/encounters';
 import { random } from '../core/SeededRNG';
-import { isMidnight, isNoon, lightingFor, tickClock, timeOfDay } from '../core/Time';
+import { tickClock, timeOfDay } from '../core/Time';
 import { autosave } from '../core/SaveManager';
 import { banner, toast } from '../ui/Popups';
 import { buildRivalParty, getTrainer, rivalDialogue, type TrainerDef } from '../world/trainers';
 import { isFainted } from '../battle/Creature';
-import { isSolid } from '../render/tiles/TilePainter';
 import { World3D, type WorldActor } from '../render/three/World3D';
 import { ThreeSurface } from '../render/three/ThreeSurface';
-import { finaleLines, getChapter, storyForMap, TROPHIES, trialLockedReason } from '../world/campaign';
+import { finaleLines, storyForMap, TROPHIES, trialLockedReason } from '../world/campaign';
+import {
+  altarEventAt,
+  canWalkTo,
+  facingTile,
+  hasFieldAbility,
+  inSightLine,
+  lineOfSightClear,
+  rivalTriggerAt,
+  whiteOutDestination,
+  type FieldAbility,
+} from '../world/fieldRules';
+import { OverworldHud } from './overworld/OverworldHud';
 
 const SCALE = 3;
 const TILE = TILE_SIZE * SCALE;
@@ -64,11 +75,7 @@ export class OverworldScene extends Phaser.Scene {
   private dialogueActive = false;
   private ambient?: Phaser.GameObjects.Particles.ParticleEmitter;
   private world3d?: World3D;
-  private gradeOverlay!: Phaser.GameObjects.Rectangle;
-  private hudText!: Phaser.GameObjects.Text;
-  private hudTrophy!: Phaser.GameObjects.Text;
-  private hudObjective!: Phaser.GameObjects.Text;
-  private areaBanner?: Phaser.GameObjects.Text;
+  private hud!: OverworldHud;
   private touchHintShown = false;
   private running = false;
 
@@ -130,7 +137,7 @@ export class OverworldScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onPointerDownEvent);
 
     Audio.playMusic(this.map.music ?? this.musicForMap());
-    this.showAreaBanner();
+    this.hud.showAreaBanner();
     this.applySettings();
     this.updateHud();
 
@@ -249,63 +256,7 @@ export class OverworldScene extends Phaser.Scene {
   private buildUi(): void {
     this.textbox = new TextBox(this);
     this.textbox.setScrollFactor(0);
-
-    this.gradeOverlay = this.add.rectangle(0, 0, VIEW_WIDTH, VIEW_HEIGHT, 0x000000, 0);
-    this.gradeOverlay.setOrigin(0, 0).setScrollFactor(0).setDepth(DEPTHS.lighting);
-    this.gradeOverlay.setVisible(false);
-
-    const frame = this.add.graphics();
-    frame.fillStyle(0x05070f, 0.6);
-    frame.fillRoundedRect(10, 8, 300, 54, 8);
-    frame.lineStyle(2, COLORS.panelEdge, 0.8);
-    frame.strokeRoundedRect(10, 8, 300, 54, 8);
-    frame.setScrollFactor(0).setDepth(DEPTHS.ui);
-
-    this.hudText = this.add
-      .text(22, 18, '', {
-        fontFamily: FONTS.body,
-        fontSize: '14px',
-        color: '#f2f6ff',
-        fontStyle: 'bold',
-        lineSpacing: 4,
-      })
-      .setScrollFactor(0)
-      .setDepth(DEPTHS.ui + 1);
-
-    this.hudTrophy = this.add
-      .text(VIEW_WIDTH - 22, 18, '', {
-        fontFamily: FONTS.body,
-        fontSize: '14px',
-        color: '#ffd60a',
-        fontStyle: 'bold',
-      })
-      .setOrigin(1, 0)
-      .setScrollFactor(0)
-      .setDepth(DEPTHS.ui + 1);
-
-    this.hudObjective = this.add
-      .text(24, VIEW_HEIGHT - 28, '', {
-        fontFamily: FONTS.body,
-        fontSize: '12px',
-        color: '#dce6f7',
-        wordWrap: { width: 660 },
-        lineSpacing: 4,
-        backgroundColor: 'rgba(5,7,15,0.55)',
-        padding: { x: 8, y: 4 },
-      })
-      .setOrigin(0, 0.5)
-      .setScrollFactor(0)
-      .setDepth(DEPTHS.ui);
-
-    this.add
-      .text(VIEW_WIDTH - 22, VIEW_HEIGHT - 14, 'Move Arrows \u00b7 Confirm Z \u00b7 Menu C', {
-        fontFamily: FONTS.body,
-        fontSize: '10px',
-        color: '#6d7d99',
-      })
-      .setOrigin(1, 0.5)
-      .setScrollFactor(0)
-      .setDepth(DEPTHS.ui);
+    this.hud = new OverworldHud(this, this.map);
   }
 
   private buildWorld3D(): void {
@@ -374,97 +325,26 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  private showAreaBanner(): void {
-    this.areaBanner?.destroy();
-    const banner = this.add
-      .text(VIEW_WIDTH / 2, 64, this.map.name, {
-        fontFamily: FONTS.body,
-        fontSize: '24px',
-        color: '#f2f6ff',
-        fontStyle: 'bold',
-        stroke: '#0b1020',
-        strokeThickness: 6,
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(DEPTHS.overlay);
-
-    const blurb = this.add
-      .text(VIEW_WIDTH / 2, 90, this.map.blurb ?? '', {
-        fontFamily: FONTS.body,
-        fontSize: '13px',
-        color: '#cfe0f5',
-        stroke: '#0b1020',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(DEPTHS.overlay);
-
-    this.areaBanner = banner;
-    this.tweens.add({
-      targets: [banner, blurb],
-      alpha: 0,
-      delay: 2200,
-      duration: 700,
-      onComplete: () => {
-        banner.destroy();
-        blurb.destroy();
-      },
-    });
-  }
-
   private updateHud(): void {
-    const state = Game.state;
-    const chapter = getChapter(state);
-    this.hudText.setText(`${this.map.name}\nChapter ${chapter.number} \u00b7 ${chapter.title}`);
-    this.hudTrophy.setText(`Trophies ${state.sigils.length}/6`);
-    this.hudObjective.setText(chapter.objective);
+    this.hud.update();
   }
 
   /* ------------------------------------------------------------ movement -- */
 
   private canWalkTo(x: number, y: number): boolean {
-    if (x < 0 || y < 0 || x >= this.map.width || y >= this.map.height) return false;
-    const tile = this.grid[y]?.[x];
-    if (!tile) return false;
-    const spec = TILE_SPECS[tile];
-    if (!spec) return true;
-
-    // Only these explicit field obstacles open up once their ability is earned;
-    // every other blocked tile (cave walls, crystal walls, buildings, rocks,
-    // trees, fences) stays blocked.
-    if (tile.startsWith('water')) {
-      if (!this.hasFieldAbility('surf')) return false;
-    } else if (tile === 'cut-tree') {
-      if (!this.hasFieldAbility('cut')) return false;
-    } else if (tile === 'crystal-smashable') {
-      if (!this.hasFieldAbility('smash')) return false;
-    } else if (tile === 'bush') {
-      if (!this.hasFieldAbility('night-sight')) return false;
-    } else if (tile === 'magnet-plate') {
-      if (!this.hasFieldAbility('magnet')) return false;
-    } else if (spec.solid) {
-      return false;
-    }
-
     // NPCs block their tile.
-    return !this.actors.some(
-      (actor) => !actor.hidden && actor.def.x === x && actor.def.y === y,
+    return canWalkTo(
+      this.map,
+      this.grid,
+      x,
+      y,
+      (ability) => this.hasFieldAbility(ability),
+      (tx, ty) => this.actors.some((actor) => !actor.hidden && actor.def.x === tx && actor.def.y === ty),
     );
   }
 
-  private hasFieldAbility(ability: NonNullable<MapDef['requires']>): boolean {
-    const sigilMap: Record<string, string> = {
-      cut: 'sigil-grass',
-      magnet: 'sigil-electric',
-      surf: 'sigil-water',
-      light: 'sigil-fire',
-      smash: 'sigil-crystal',
-      'night-sight': 'sigil-shadow',
-    };
-    const sigil = sigilMap[ability];
-    return sigil ? Game.state.hasSigil(sigil) : false;
+  private hasFieldAbility(ability: FieldAbility): boolean {
+    return hasFieldAbility(Game.state, ability);
   }
 
   private tryMove(dx: number, dy: number, running: boolean): void {
@@ -629,19 +509,10 @@ export class OverworldScene extends Phaser.Scene {
       }
       if (this.isTrainerDefeated(actor.def)) continue;
 
-      const dx = this.playerTile.x - actor.def.x;
-      const dy = this.playerTile.y - actor.def.y;
-      const facing = actor.def.facing;
-      const inSight =
-        (facing === 'left' && dy === 0 && dx < 0 && -dx <= sight) ||
-        (facing === 'right' && dy === 0 && dx > 0 && dx <= sight) ||
-        (facing === 'up' && dx === 0 && dy < 0 && -dy <= sight) ||
-        (facing === 'down' && dx === 0 && dy > 0 && dy <= sight);
-
-      if (!inSight) continue;
+      if (!inSightLine(actor.def, sight, this.playerTile)) continue;
 
       // Clear line of sight (no solid tiles between).
-      if (!this.lineOfSightClear(actor.def.x, actor.def.y, this.playerTile.x, this.playerTile.y)) {
+      if (!lineOfSightClear(this.grid, actor.def.x, actor.def.y, this.playerTile.x, this.playerTile.y)) {
         continue;
       }
 
@@ -668,20 +539,6 @@ export class OverworldScene extends Phaser.Scene {
       this.startTrainerBattle(actor);
       return;
     }
-  }
-
-  private lineOfSightClear(x0: number, y0: number, x1: number, y1: number): boolean {
-    const dx = Math.sign(x1 - x0);
-    const dy = Math.sign(y1 - y0);
-    let x = x0 + dx;
-    let y = y0 + dy;
-    while (x !== x1 || y !== y1) {
-      const tile = this.grid[y]?.[x];
-      if (!tile || isSolid(tile)) return false;
-      x += dx;
-      y += dy;
-    }
-    return true;
   }
 
   private startTrainerBattle(actor: Actor): void {
@@ -763,16 +620,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private facingTile(): { x: number; y: number } {
-    switch (this.facing) {
-      case 'up':
-        return { x: this.playerTile.x, y: this.playerTile.y - 1 };
-      case 'down':
-        return { x: this.playerTile.x, y: this.playerTile.y + 1 };
-      case 'left':
-        return { x: this.playerTile.x - 1, y: this.playerTile.y };
-      default:
-        return { x: this.playerTile.x + 1, y: this.playerTile.y };
-    }
+    return facingTile(this.playerTile, this.facing as Facing);
   }
 
   private talkTo(actor: Actor): void {
@@ -848,54 +696,15 @@ export class OverworldScene extends Phaser.Scene {
   /* --------------------------------------------------------------- altars -- */
 
   private checkAltarInteraction(): void {
-    // Solarion, at noon in the caldera.
-    if (this.map.id === 'cinder-peak' && isNoon(Game.state.clock) && !Game.state.getFlag('solarion-caught')) {
-      this.say(
-        ['The caldera shimmers. Something golden stirs in the heat.', 'Challenge Solarion?'],
-        () => this.startLegendaryBattle('solarion', 58, 'solarion-caught'),
-      );
+    const event = altarEventAt(Game.state, this.map, this.playerTile);
+
+    if (event.kind === 'legendary') {
+      this.say(event.lines, () => this.startLegendaryBattle(event.speciesId, event.level, event.flag));
       return;
     }
 
-    // Eclipsor, at midnight in the ruins.
-    if (
-      this.map.id === 'duskmoor-ruins' &&
-      isMidnight(Game.state.clock) &&
-      Game.state.getFlag('eclipse-ritual-broken') &&
-      !Game.state.getFlag('eclipsor-caught')
-    ) {
-      this.say(
-        ['The altar splits. Light pours in and does not come back out.', 'Eclipsor rises!'],
-        () => this.startLegendaryBattle('eclipsor', 60, 'eclipsor-caught'),
-      );
-      return;
-    }
-
-    // Aetherion, after the Champion, once 39 others are caught.
-    if (
-      this.map.id === 'prism-summit' &&
-      Game.state.getFlag('champion-defeated') &&
-      Game.state.caughtCount() >= 39 &&
-      !Game.state.getFlag('aetherion-caught')
-    ) {
-      this.say(
-        [
-          'Six sockets, six sigils, one empty sky.',
-          'The elements rush together and the clouds tear open.',
-        ],
-        () => this.startLegendaryBattle('aetherion', 60, 'aetherion-caught'),
-      );
-      return;
-    }
-
-    // The Champion — only at the summit altar beside Aurelia herself, and only
-    // once the main story has actually unlocked the challenge.
-    const championNpc = this.map.npcs.find((n) => n.trainerId === 'champion-aurelia');
-    const nearChampion =
-      championNpc !== undefined &&
-      Math.abs(championNpc.x - this.playerTile.x) <= 2 &&
-      Math.abs(championNpc.y - this.playerTile.y) <= 2;
-    if (this.map.id === 'prism-summit' && !Game.state.getFlag('champion-defeated') && nearChampion) {
+    // The Champion — only once the main story has actually unlocked the challenge.
+    if (event.kind === 'champion') {
       const lock = trialLockedReason(Game.state, 'champion-aurelia');
       if (lock) {
         this.say([lock]);
@@ -929,50 +738,8 @@ export class OverworldScene extends Phaser.Scene {
 
   private checkStoryTiles(): void {
     if (this.dialogueActive || this.running) return;
-    const flags = Game.state.flags;
-
-    // Rival battle 1: first time leaving Emberleaf Town.
-    if (
-      this.map.id === 'route-1' &&
-      this.playerTile.y >= 24 &&
-      !flags['rival-1-defeated'] &&
-      Game.state.starterChosen
-    ) {
-      this.startRivalBattle(1);
-      return;
-    }
-
-    // Rival battle 2: entering Route 2 after the first Sigil.
-    if (
-      this.map.id === 'route-2' &&
-      this.playerTile.y >= 27 &&
-      flags['trial-1-cleared'] &&
-      !flags['rival-2-defeated']
-    ) {
-      this.startRivalBattle(2);
-      return;
-    }
-
-    // Rival battle 3: entering Route 4 after the third Sigil.
-    if (
-      this.map.id === 'route-4' &&
-      this.playerTile.y >= 27 &&
-      flags['trial-3-cleared'] &&
-      !flags['rival-3-defeated']
-    ) {
-      this.startRivalBattle(3);
-      return;
-    }
-
-    // Rival battle 4: entering Route 7 after five Sigils.
-    if (
-      this.map.id === 'route-7' &&
-      this.playerTile.y >= 28 &&
-      Game.state.getSigilCount() >= 5 &&
-      !flags['rival-4-defeated']
-    ) {
-      this.startRivalBattle(4);
-    }
+    const rival = rivalTriggerAt(Game.state, this.map.id, this.playerTile);
+    if (rival !== null) this.startRivalBattle(rival);
   }
 
   /* ------------------------------------------------------------ dialogue -- */
@@ -1102,9 +869,8 @@ export class OverworldScene extends Phaser.Scene {
 
   private whiteOut(): void {
     Game.state.healParty();
-    const home = Game.state.sigils.length >= 3 ? 'tidehaven' : 'emberleaf-town';
-    const spot = home === 'tidehaven' ? { x: 17, y: 22 } : { x: 10, y: 14 };
-    Game.state.position = { mapId: home, x: spot.x, y: spot.y, facing: 'down' };
+    const home = whiteOutDestination(Game.state);
+    Game.state.position = { mapId: home.mapId, x: home.x, y: home.y, facing: 'down' };
     Audio.playSfx('warp');
     this.cameras.main.fadeOut(400, 5, 7, 15);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
@@ -1128,7 +894,7 @@ export class OverworldScene extends Phaser.Scene {
     // Clock and playtime advance with real time.
     tickClock(Game.state.clock, delta);
     Game.state.playtimeMinutes += delta / 60000;
-    this.applyDayNightGrade();
+    this.hud.applyDayNightGrade();
     if (Math.floor(time / 1000) % 5 === 0) this.updateHud();
 
     if (this.dialogueActive) {
@@ -1161,16 +927,4 @@ export class OverworldScene extends Phaser.Scene {
       toast(this, 'Use the on-screen controls to move.', COLORS.panelGlow);
     }
   }
-
-  private applyDayNightGrade(): void {
-    const lighting = lightingFor(Game.state.clock);
-    if (this.map.indoor || this.map.isCave) {
-      this.gradeOverlay.fillColor = this.map.isCave ? 0x1a1630 : 0x000000;
-      this.gradeOverlay.fillAlpha = this.map.isCave ? 0.34 : 0.05;
-      return;
-    }
-    this.gradeOverlay.fillColor = lighting.tint;
-    this.gradeOverlay.fillAlpha = lighting.alpha * 0.7;
-  }
 }
-

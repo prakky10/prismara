@@ -16,12 +16,8 @@ import { Game } from '../world/GameContext';
 import { buildBattle, maximizeMovesForLevel, partyForTrainer } from '../world/battleSetup';
 import {
   BattleState,
-  displayName,
-  expProgress,
-  getMove,
   hpFraction,
   isFainted,
-  maxHp,
   speciesOf,
   type BattleAction,
   type BattleEvent,
@@ -29,34 +25,32 @@ import {
 } from '../battle';
 import { resolveLearnMove } from '../battle/TurnResolver';
 import { applyTrainerVictory, consumeBattleItem } from '../world/battleResults';
-import { HPBar } from '../ui/HPBar';
 import { Panel } from '../ui/Panel';
 import { MenuList, type MenuItem } from '../ui/MenuList';
 import { TextBox } from '../ui/TextBox';
-import { banner, damageNumber, toast, xpPopup } from '../ui/Popups';
-import { ELEMENT_INFO, effectivenessLabel } from '../data/types';
+import { toast } from '../ui/Popups';
 import { CreatureRig } from '../render/CreatureRig';
 import { Battle3D } from '../render/three/Battle3D';
-import { playMoveVfx, typeWipe } from '../render/vfx/MoveVfx';
-import { statusColor } from '../ui/Theme';
+import { typeWipe } from '../render/vfx/MoveVfx';
 import { ITEMS, type ItemId } from '../data/items';
-import { STATUS_INFO, WEATHERS, type Side } from '../data/battleTypes';
+import { WEATHERS, type Side } from '../data/battleTypes';
 import type { AITier } from '../battle/BattleState';
+import { BattlePanel } from './battle/BattlePanel';
+import { BattleEventPlayer } from './battle/BattleEventPlayer';
+import {
+  actionMenuItems,
+  arenaBiomeFor,
+  bagMenuItems,
+  learnMenuItems,
+  moveMenuItems,
+  partyMenuItems,
+} from './battle/battleMenus';
 
 type MenuMode = 'none' | 'action' | 'moves' | 'party' | 'bag' | 'learn';
 
 /** Where each side's creature stands. The platforms are drawn at these points. */
 const PLAYER_STAGE = { x: 200, y: 400 };
 const ENEMY_STAGE = { x: 720, y: 250 };
-
-interface UiPanel {
-  panel: Panel;
-  name: Phaser.GameObjects.Text;
-  level: Phaser.GameObjects.Text;
-  hp: HPBar;
-  status: Phaser.GameObjects.Text;
-  statusIcon: Phaser.GameObjects.Text;
-}
 
 export class BattleScene extends Phaser.Scene {
   private controls!: InputManager;
@@ -66,8 +60,9 @@ export class BattleScene extends Phaser.Scene {
 
   private playerRig!: CreatureRig;
   private enemyRig!: CreatureRig;
-  private playerUi!: UiPanel;
-  private enemyUi!: UiPanel;
+  private playerUi!: BattlePanel;
+  private enemyUi!: BattlePanel;
+  private player!: BattleEventPlayer;
   private weatherText!: Phaser.GameObjects.Text;
   private textbox!: TextBox;
   private menu!: MenuList;
@@ -124,6 +119,19 @@ export class BattleScene extends Phaser.Scene {
     this.buildArena();
     this.buildBattle(request);
     this.buildUi();
+    this.player = new BattleEventPlayer({
+      scene: this,
+      battle: () => this.battle,
+      rig: (side) => (side === 'player' ? this.playerRig : this.enemyRig),
+      hud: (side) => (side === 'player' ? this.playerUi : this.enemyUi),
+      stagePoint: (side) => ({ x: this.rigX(side), y: this.rigY(side) }),
+      showMessage: (text, autoMs, waitForInput) => this.showMessage(text, autoMs, waitForInput),
+      wait: (ms) => this.wait(ms),
+      refreshPanels: () => this.refreshPanels(),
+      buildRigs: (side, uid) => this.buildRigs(side, uid),
+      promptLearnMove: (uid, moveId) => this.promptLearnMove(uid, moveId),
+      captureCreature: () => this.captureCreature(),
+    });
 
     Audio.playMusic(
       request.kind === 'trainer'
@@ -137,29 +145,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private biomeForRequest(request: NonNullable<typeof Game.pendingBattle>): string {
-    const mapId = Game.state.position.mapId;
-    const zones: Record<string, string> = {
-      'emberleaf-town': 'meadow',
-      'route-1': 'meadow',
-      'whisperwood-forest': 'forest',
-      thistlebrook: 'forest',
-      'route-2': 'city',
-      'voltspire-city': 'city',
-      'route-3': 'beach',
-      tidehaven: 'beach',
-      'route-4': 'beach',
-      'ashfall-town': 'volcano',
-      'cinder-peak': 'volcano',
-      'route-5': 'volcano',
-      'route-6': 'ruins',
-      'geode-hollow': 'cave',
-      'glimmer-caverns': 'cave',
-      'route-7': 'forest',
-      'duskmoor-ruins': 'ruins',
-      'prism-summit': 'summit',
-    };
     void request;
-    return zones[mapId] ?? 'meadow';
+    return arenaBiomeFor(Game.state.position.mapId);
   }
 
   /* ------------------------------------------------------------ setup -- */
@@ -219,8 +206,8 @@ export class BattleScene extends Phaser.Scene {
 
     // Enemy panel top-left, player panel on the right above the text box:
     // the classic four-corner layout, arranged so nothing overlaps.
-    this.enemyUi = this.makePanel(60, 40, 330, 74, 'enemy');
-    this.playerUi = this.makePanel(VIEW_WIDTH - 400, 300, 340, 84, 'player');
+    this.enemyUi = new BattlePanel(this, 60, 40, 330, 74, 'enemy');
+    this.playerUi = new BattlePanel(this, VIEW_WIDTH - 400, 300, 340, 84, 'player');
 
     this.weatherText = this.add
       .text(VIEW_WIDTH - 16, 14, '', {
@@ -260,63 +247,6 @@ export class BattleScene extends Phaser.Scene {
     this.menu.setVisible(false);
 
     void state;
-  }
-
-  private makePanel(x: number, y: number, width: number, height: number, side: Side): UiPanel {
-    const panel = new Panel(this, x + width / 2, y + height / 2, {
-      width,
-      height,
-      glow: side === 'player' ? COLORS.panelGlow : COLORS.panelEdge,
-    });
-    panel.setDepth(DEPTHS.ui);
-
-    const name = this.add
-      .text(x + 16, y + 18, '', {
-        fontFamily: FONTS.body,
-        fontSize: '16px',
-        color: '#f2f6ff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(DEPTHS.ui + 1);
-
-    const level = this.add
-      .text(x + width - 14, y + 18, '', {
-        fontFamily: FONTS.body,
-        fontSize: '13px',
-        color: '#ffd60a',
-      })
-      .setOrigin(1, 0.5)
-      .setDepth(DEPTHS.ui + 1);
-
-    const hp = new HPBar(this, x + width / 2 - 6, y + 46, {
-      width: width - 40,
-      height: 9,
-      showXp: side === 'player',
-    });
-    hp.setDepth(DEPTHS.ui + 1);
-
-    const statusIcon = this.add
-      .text(x + 14, y + 46, '', {
-        fontFamily: FONTS.body,
-        fontSize: '10px',
-        color: '#ffd60a',
-        backgroundColor: 'rgba(5,7,15,0.7)',
-        padding: { x: 4, y: 2 },
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(DEPTHS.ui + 2);
-
-    const status = this.add
-      .text(x + 14, y + height - 10, '', {
-        fontFamily: FONTS.body,
-        fontSize: '10px',
-        color: '#9fb0cc',
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(DEPTHS.ui + 1);
-
-    return { panel, name, level, hp, status, statusIcon };
   }
 
   private async buildRigs(side?: Side, uid?: string): Promise<void> {
@@ -381,32 +311,14 @@ export class BattleScene extends Phaser.Scene {
     const player = this.battle.active('player');
     const enemy = this.battle.active('enemy');
 
-    this.updatePanel(this.playerUi, player);
-    this.updatePanel(this.enemyUi, enemy);
+    this.playerUi.update(player);
+    this.enemyUi.update(enemy);
 
     const weather = WEATHERS[this.battle.weather.kind];
     this.weatherText.setText(
       this.battle.weather.kind === 'clear' ? '' : `${weather.name} (${this.battle.weather.turnsLeft || '\u221e'})`,
     );
     this.weatherText.setColor(`#${weather.color.toString(16).padStart(6, '0')}`);
-  }
-
-  private updatePanel(ui: UiPanel, creature: CreatureInstance): void {
-    ui.name.setText(displayName(creature));
-    ui.level.setText(`Lv ${creature.level}`);
-    ui.hp.set(creature.currentHp, maxHp(creature), false);
-    ui.hp.setXpVisible(true);
-    ui.hp.setXp(expProgress(creature));
-
-    const status = creature.status;
-    ui.status.setText(
-      status
-        ? `${STATUS_INFO[status].name}${creature.status === 'sleep' ? ` (${creature.statusTurns})` : ''}`
-        : '',
-    );
-    ui.status.setColor(status ? `#${statusColor(status).toString(16).padStart(6, '0')}` : '#9fb0cc');
-    ui.statusIcon.setText(status ? STATUS_INFO[status].name.toUpperCase().slice(0, 4) : '');
-    ui.statusIcon.setVisible(Boolean(status));
   }
 
   /* ------------------------------------------------------- the main loop -- */
@@ -460,354 +372,7 @@ export class BattleScene extends Phaser.Scene {
   /* ---------------------------------------------------------- event play -- */
 
   private async playEvents(events: BattleEvent[]): Promise<void> {
-    for (const event of events) {
-      await this.playEvent(event);
-    }
-  }
-
-  private async playEvent(event: BattleEvent): Promise<void> {
-    switch (event.type) {
-      case 'battle-start':
-        await this.showMessage(
-          event.isWild
-            ? `A wild ${event.enemyName} appeared!`
-            : `${event.enemyName} wants to battle!`,
-        );
-        break;
-
-      case 'switch-in':
-        // Rebuild only the side that changed as the replacement arrives.
-        await this.buildRigs(event.side, event.uid);
-        await this.showMessage(
-          event.side === 'player' ? `Go, ${event.name}!` : `Foe ${event.name} was sent out!`,
-        );
-        if (event.side === 'player') this.playerRig?.playCelebrate();
-        break;
-
-      case 'switch-out':
-        await this.showMessage(`${event.name}, come back!`);
-        break;
-
-      case 'move-used': {
-        const rig = event.side === 'player' ? this.playerRig : this.enemyRig;
-        const move = getMove(event.moveId);
-        await this.showMessage(
-          `${event.side === 'player' ? '' : 'Foe '}${displayName(
-            this.battle.active(event.side),
-          )} used ${event.moveName}!`,
-          520,
-          false,
-        );
-        rig?.playAttack();
-
-        // The elemental VFX fires as the creature lunges, and the damage event
-        // that follows lands right on the effect's impact frame.
-        if (move && Game.settings.battleAnimations) {
-          const other = this.battle.other(event.side);
-          const handle = playMoveVfx(
-            {
-              scene: this,
-              from: { x: this.rigX(event.side), y: this.rigY(event.side) - 40 },
-              to: { x: this.rigX(other), y: this.rigY(other) - 30 },
-              depth: DEPTHS.actors + 5,
-              reduced: Game.settings.reducedEffects,
-            },
-            move.type,
-          );
-          await this.wait(Math.max(120, handle.impactAtMs));
-        } else {
-          await this.wait(160);
-        }
-        break;
-      }
-
-      case 'move-missed':
-        await this.showMessage('But it missed!');
-        damageNumber(
-          this,
-          this.rigX(this.battle.other(event.side)),
-          this.rigY(this.battle.other(event.side)),
-          0,
-          { kind: 'miss' },
-        );
-        break;
-
-      case 'move-protected':
-        await this.showMessage('It protected itself!');
-        break;
-
-      case 'move-failed':
-        await this.showMessage('But it failed!');
-        break;
-
-      case 'damage':
-        await this.playDamage(event);
-        break;
-
-      case 'status-damage':
-        await this.playIndirectDamage(event);
-        break;
-
-      case 'heal': {
-        const ui = event.side === 'player' ? this.playerUi : this.enemyUi;
-        ui.hp.set(event.hpRemaining, event.maxHp, true);
-        damageNumber(this, this.rigX(event.side), this.rigY(event.side) - 40, event.amount, {
-          kind: 'heal',
-          reduced: Game.settings.reducedEffects,
-        });
-        Audio.playSfx('heal');
-        await this.wait(260);
-        break;
-      }
-
-      case 'recoil':
-        await this.showMessage('It was hurt by recoil!', 700, false);
-        break;
-
-      case 'status-applied':
-        await this.showMessage(
-          `${event.side === 'player' ? '' : 'Foe '}${displayName(
-            this.battle.active(event.side),
-          )} was afflicted with ${STATUS_INFO[event.status].name}!`,
-        );
-        Audio.playSfx('status');
-        toast(this, STATUS_INFO[event.status].name.toUpperCase(), STATUS_INFO[event.status].color);
-        this.refreshPanels();
-        break;
-
-      case 'status-cured':
-        await this.showMessage('It recovered!', 800, false);
-        this.refreshPanels();
-        break;
-
-      case 'status-immune':
-        await this.showMessage('It had no effect...', 800, false);
-        break;
-
-      case 'stat-change': {
-        const amount = Math.abs(event.delta) >= 2 ? 'sharply ' : '';
-        const verb = event.delta > 0 ? 'rose' : 'fell';
-        await this.showMessage(
-          `${event.side === 'player' ? '' : 'Foe '}${statLabel(event.stat)} ${amount}${verb}!`,
-          800,
-          false,
-        );
-        Audio.playSfx(event.delta > 0 ? 'statUp' : 'statDown');
-        break;
-      }
-
-      case 'stat-change-failed':
-        await this.showMessage('Nothing happened!', 700, false);
-        break;
-
-      case 'volatile-applied':
-        if (event.volatile === 'soaked') await this.showMessage('It was soaked!', 800, false);
-        break;
-
-      case 'weather-set':
-        await this.showMessage(WEATHERS[event.weather].description);
-        this.refreshPanels();
-        break;
-
-      case 'weather-ended':
-        await this.showMessage('The weather returned to normal.', 900, false);
-        this.refreshPanels();
-        break;
-
-      case 'ability-triggered':
-        await this.showMessage(`${event.abilityName} activated!`, 800, false);
-        break;
-
-      case 'faint': {
-        const rig = event.side === 'player' ? this.playerRig : this.enemyRig;
-        const fallen =
-          this.battle.party(event.side).find((c) => c.uid === event.uid) ??
-          this.battle.active(event.side);
-        const element = speciesOf(fallen).element;
-        rig?.playFaint(element);
-        Audio.playSfx('faint');
-        await this.showMessage(`${event.side === 'player' ? '' : 'Foe '}${event.name} fainted!`);
-        break;
-      }
-
-      case 'revive':
-        await this.showMessage(`${event.name} was reborn!`);
-        Audio.playSfx('shiny');
-        break;
-
-      case 'exp-gained': {
-        const ui = this.playerUi;
-        xpPopup(this, this.rigX('player'), this.rigY('player') - 60, event.amount);
-        const creature = this.battle.active('player');
-        ui.hp.setXp(expProgress(creature));
-        await this.wait(420);
-        break;
-      }
-
-      case 'level-up': {
-        Audio.playSfx('levelUp');
-        banner(this, `LEVEL ${event.level}`, COLORS.gold, 900);
-        this.refreshPanels();
-        await this.wait(700);
-        break;
-      }
-
-      case 'move-learned':
-        await this.showMessage(
-          `${displayName(this.battle.active('player'))} learned ${prettyMove(event.moveId)}!`,
-        );
-        break;
-
-      case 'move-learn-prompt':
-        await this.promptLearnMove(event.uid, event.moveId);
-        break;
-
-      case 'catch-shake':
-        Audio.playSfx('orbShake');
-        await this.wait(420);
-        break;
-
-      case 'catch-success': {
-        Audio.playSfx('orbClick');
-        banner(this, 'GOTCHA!', COLORS.gold, 1600);
-        await this.showMessage(
-          `${event.shakes} shakes... and it was caught!`,
-        );
-        this.captureCreature();
-        break;
-      }
-
-      case 'catch-failed':
-        Audio.playSfx('orbBreak');
-        await this.showMessage('Argh! It broke free!');
-        break;
-
-      case 'flee-attempt':
-        await this.showMessage(event.success ? 'Got away safely!' : "Couldn't get away!");
-        break;
-
-      case 'item-used':
-        Audio.playSfx('heal');
-        await this.showMessage(`You used ${ITEMS[event.itemId]?.name ?? 'an item'}.`, 800, false);
-        break;
-
-      case 'money-earned':
-        Audio.playSfx('money');
-        Game.state.addMoney(event.amount);
-        await this.showMessage(`You got \u00a3${event.amount} for winning!`);
-        break;
-
-      case 'request-switch':
-        // Handled by the loop, nothing to animate here.
-        break;
-
-      case 'battle-end':
-        await this.playBattleEnd(event);
-        break;
-
-      case 'turn-start':
-      case 'message':
-        if (event.type === 'message') await this.showMessage(event.text);
-        break;
-
-      case 'drain':
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  private async playDamage(event: Extract<BattleEvent, { type: 'damage' }>): Promise<void> {
-    const ui = event.side === 'player' ? this.playerUi : this.enemyUi;
-    const rig = event.side === 'player' ? this.playerRig : this.enemyRig;
-
-    ui.hp.set(event.hpRemaining, event.maxHp, true);
-    ui.hp.flashDamage();
-
-    if (Game.settings.damageNumbers) {
-      damageNumber(this, this.rigX(event.side), this.rigY(event.side) - 30, event.amount, {
-        crit: event.crit,
-        effectiveness: event.effectiveness,
-        reduced: Game.settings.reducedEffects,
-      });
-    }
-
-    if (event.indirect) {
-      Audio.playSfx('hitWeak');
-      await this.wait(220);
-      return;
-    }
-
-    const dir = event.side === 'player' ? 1 : -1;
-    rig?.playHurt(dir);
-
-    const reduced = Game.settings.reducedEffects;
-
-    if (event.crit) {
-      Audio.playSfx('crit');
-      if (!reduced) {
-        this.cameras.main.shake(180, 0.012);
-        // Hit-stop: a brief freeze sells the impact. The delay runs on real
-        // time so it stays 70ms even while the scene clock is slowed down.
-        this.time.timeScale = 0.05;
-        try {
-          await realDelay(70);
-        } finally {
-          this.time.timeScale = 1;
-        }
-      }
-    } else if (event.effectiveness >= 2) {
-      Audio.playSfx('hitSuper');
-      if (!reduced) this.cameras.main.shake(140, 0.008);
-    } else if (event.effectiveness <= 0.5) {
-      Audio.playSfx('hitWeak');
-    } else {
-      Audio.playSfx('hit');
-      if (!reduced) this.cameras.main.shake(90, 0.004);
-    }
-
-    const label = effectivenessLabel(event.effectiveness);
-    await this.wait(event.crit ? 420 : event.effectiveness >= 2 ? 380 : 300);
-    if (label) await this.showMessage(label, 800, false);
-  }
-
-  private async playIndirectDamage(
-    event: Extract<BattleEvent, { type: 'status-damage' }>,
-  ): Promise<void> {
-    const ui = event.side === 'player' ? this.playerUi : this.enemyUi;
-    ui.hp.set(event.hpRemaining, maxHp(this.battle.active(event.side)), true);
-    if (Game.settings.damageNumbers) {
-      damageNumber(this, this.rigX(event.side), this.rigY(event.side) - 30, event.amount, {
-        reduced: Game.settings.reducedEffects,
-      });
-    }
-    Audio.playSfx('hitWeak');
-    await this.showMessage(
-      `${event.side === 'player' ? '' : 'Foe '}${displayName(
-        this.battle.active(event.side),
-      )} is hurt by ${STATUS_INFO[event.status].name.toLowerCase()}!`,
-      800,
-      false,
-    );
-  }
-
-  private async playBattleEnd(event: Extract<BattleEvent, { type: 'battle-end' }>): Promise<void> {
-    Game.lastOutcome = {
-      winner: event.winner === 'draw' ? 'draw' : event.winner,
-      reason: event.reason,
-      caught: this.battle.caughtCreature,
-      moneyEarned: this.battle.moneyReward,
-      fled: this.battle.fled,
-    };
-
-    if (event.winner === 'player' && event.reason === 'faint') {
-      Audio.playMusic('victory');
-      banner(this, 'VICTORY!', COLORS.gold, 1400);
-      await this.wait(900);
-    } else if (event.reason !== 'catch' && event.reason !== 'flee') {
-      await this.showMessage(event.winner === 'enemy' ? 'You have no creatures left...' : 'The battle ended.');
-    }
+    await this.player.playAll(events);
   }
 
   /* ------------------------------------------------------------ capture -- */
@@ -864,35 +429,14 @@ export class BattleScene extends Phaser.Scene {
   private promptAction(): Promise<BattleAction | null> {
     return new Promise((resolve) => {
       this.resolver = resolve;
-      this.openMenu(
-        [
-          { value: 'fight', label: 'Fight' },
-          { value: 'bag', label: 'Bag' },
-          { value: 'party', label: 'Creature' },
-          {
-            value: 'run',
-            label: this.battle.canFlee ? 'Run' : '\u2014',
-            disabled: !this.battle.canFlee,
-          },
-        ],
-        'action',
-        2,
-        2,
-      );
+      this.openMenu(actionMenuItems(this.battle), 'action', 2, 2);
     });
   }
 
   private promptForcedSwitch(): Promise<void> {
     return new Promise((resolve) => {
-      const party = this.battle.player.party;
-      const items: MenuItem[] = party.map((creature, index) => ({
-        value: String(index),
-        label: displayName(creature),
-        sublabel: `${creature.currentHp}/${maxHp(creature)}`,
-        disabled: isFainted(creature) || index === this.battle.player.activeIndex,
-      }));
       this.forcedSwitchResolver = resolve;
-      this.openMenu(items, 'party', 1, 6);
+      this.openMenu(partyMenuItems(this.battle, true), 'party', 1, 6);
       this.pendingSwitchOnly = true;
     });
   }
@@ -908,14 +452,7 @@ export class BattleScene extends Phaser.Scene {
         resolve();
         return;
       }
-      const items: MenuItem[] = [
-        ...creature.moves.map((slot, index) => ({
-          value: String(index),
-          label: prettyMove(slot.id),
-          sublabel: `${slot.pp}/${slot.maxPp}`,
-        })),
-        { value: 'skip', label: "Don't learn it" },
-      ];
+      const items = learnMenuItems(creature.moves);
       this.learnResolver = (index) => {
         resolveLearnMove(this.battle, uid, moveId, index);
         this.pendingLearn = null;
@@ -1012,71 +549,19 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private openActionMenuAgain(): void {
-    this.openMenu(
-      [
-        { value: 'fight', label: 'Fight' },
-        { value: 'bag', label: 'Bag' },
-        { value: 'party', label: 'Creature' },
-        { value: 'run', label: 'Run', disabled: !this.battle.canFlee },
-      ],
-      'action',
-      2,
-      2,
-    );
+    this.openMenu(actionMenuItems(this.battle), 'action', 2, 2);
   }
 
   private openMoveMenu(): void {
-    const player = this.battle.active('player');
-    const items: MenuItem[] = player.moves.map((slot, index) => {
-      const move = getMove(slot.id);
-      return {
-        value: String(index),
-        label: move?.name ?? slot.id,
-        sublabel: `${slot.pp}/${slot.maxPp}`,
-        disabled: slot.pp <= 0,
-        trailing: move ? move.type.toUpperCase() : '',
-        color: move ? ELEMENT_INFO[move.type].color : undefined,
-      };
-    });
-    // Struggle is the fallback when every move is out of PP (engine reads -1).
-    const anyPp = player.moves.some((slot) => slot.pp > 0);
-    if (items.length === 0 || !anyPp) items.push({ value: '-1', label: 'Struggle' });
-    this.openMenu(items, 'moves', 1, 4);
+    this.openMenu(moveMenuItems(this.battle), 'moves', 1, 4);
   }
 
   private openPartyMenu(forced: boolean): void {
-    const party = this.battle.player.party;
-    const items: MenuItem[] = party.map((creature, index) => ({
-      value: String(index),
-      label: displayName(creature),
-      sublabel: `${creature.currentHp}/${maxHp(creature)}`,
-      disabled:
-        isFainted(creature) ||
-        (index === this.battle.player.activeIndex && !forced) ||
-        (!forced && creature.status === 'entangled'),
-    }));
-    this.openMenu(items, 'party', forced ? 1 : 2, 6);
+    this.openMenu(partyMenuItems(this.battle, forced), 'party', forced ? 1 : 2, 6);
   }
 
   private openBagMenu(): void {
-    const wild = this.battle.isWild;
-    // Only real, non-empty entries — never a duplicate or a zero-count orb row.
-    const entries = Game.state
-      .bagEntries()
-      .filter((entry) => entry.count > 0)
-      .filter((entry) => ITEMS[entry.id].usableInBattle || ITEMS[entry.id].throwable);
-    const items: MenuItem[] = entries.map((entry) => {
-      const item = ITEMS[entry.id];
-      const isOrb = item.throwable === true;
-      return {
-        value: `item-${entry.id}`,
-        label: item.name,
-        trailing: `x${entry.count}`,
-        disabled: isOrb && !wild,
-      };
-    });
-    items.push({ value: 'back', label: 'Back' });
-    this.openMenu(items, 'bag', 1, 6);
+    this.openMenu(bagMenuItems(Game.state.bagEntries(), this.battle.isWild), 'bag', 1, 6);
   }
 
   private emitAction(action: BattleAction): void {
@@ -1249,31 +734,6 @@ export class BattleScene extends Phaser.Scene {
       this.openActionMenuAgain();
     }
   }
-}
-
-function statLabel(stat: string): string {
-  const labels: Record<string, string> = {
-    attack: 'Attack',
-    defense: 'Defense',
-    spPower: 'Sp. Power',
-    spGuard: 'Sp. Guard',
-    speed: 'Speed',
-    accuracy: 'accuracy',
-    evasion: 'evasiveness',
-  };
-  return labels[stat] ?? stat;
-}
-
-function prettyMove(id: string): string {
-  return id
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-/** A real-time delay, unaffected by the scene clock's time scale. */
-function realDelay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export { maximizeMovesForLevel, typeWipe, hpFraction };
