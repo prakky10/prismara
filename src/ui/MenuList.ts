@@ -234,7 +234,8 @@ export class MenuList extends Phaser.GameObjects.Container {
 
     const selected = index === this.cursor;
     const disabled = item.disabled === true;
-    const prefix = `${item.icon ? `${item.icon} ` : ''}${selected ? '\u25b6 ' : '  '}`;
+    // The selection pill draws its own arrow, so the label carries no marker.
+    const prefix = item.icon ? `${item.icon} ` : '';
     row.text.setColor(
       disabled
         ? '#5c6b85'
