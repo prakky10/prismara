@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0f1c" />
+    <meta
+      name="description"
+      content="PRISMARA — an original monster-collecting RPG. Catch, train and battle 40 unique creatures across the Prismara islands."
+    />
+    <title>PRISMARA</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #05070f;
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+        overscroll-behavior: none;
+      }
+      #game-root {
+        position: fixed;
+        z-index: 1;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+      }
+      #game-root canvas {
+        display: block;
+        image-rendering: auto;
+        box-shadow: 0 0 80px rgba(80, 160, 255, 0.15);
+      }
+      /* Crisp scaled pixels for the overworld tileset only. */
+      #game-root canvas.pixelated {
+        image-rendering: pixelated;
+      }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        align-items: center;
+        justify-content: center;
+        background: #05070f;
+        color: #cfe4ff;
+        font-size: 14px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        transition: opacity 0.5s ease;
+        z-index: 10;
+      }
+      #boot-splash.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-prism {
+        width: 46px;
+        height: 46px;
+        background: conic-gradient(
+          from 0deg,
+          #ff6b35,
+          #ffd60a,
+          #4cd964,
+          #2ea8ff,
+          #8e5cff,
+          #7fffe5,
+          #ff6b35
+        );
+        clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        animation: spin 2.4s linear infinite;
+        filter: drop-shadow(0 0 12px rgba(127, 255, 229, 0.6));
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      #boot-splash.failed {
+        color: #ff9a9a;
+        letter-spacing: 0.05em;
+        text-transform: none;
+        font-size: 13px;
+        padding: 0 24px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-root"></div>
+    <div id="boot-splash">
+      <div class="boot-prism"></div>
+      <div id="boot-status">Loading Prismara</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

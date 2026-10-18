@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.local
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+
+# Local-only archive of old build/orchestration notes
+_archive/
+.commandcode/
