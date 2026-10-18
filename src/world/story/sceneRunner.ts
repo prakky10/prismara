@@ -63,6 +63,19 @@ export function scenesAfterBattle(state: GameState, trainerId: string): StorySce
 }
 
 /**
+ * Scenes unlocked by every trainer the player has already beaten. Uses the
+ * durable `defeated-<id>` marker written by applyTrainerVictory, so a victory
+ * whose after-battle story was cut short by a reload still plays its scenes
+ * (journal pages, lore) instead of losing them with the transient battle state.
+ */
+export function scenesForDefeatedTrainers(state: GameState): StoryScene[] {
+  return collect(
+    state,
+    (t) => t.kind === 'after' && state.getFlag(`defeated-${t.trainerId}`) === true,
+  );
+}
+
+/**
  * Scenes for talking to an NPC: the first available once-only scene plus any
  * `chain` scenes that follow it, otherwise the first repeatable variant.
  */

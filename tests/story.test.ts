@@ -16,9 +16,11 @@ import {
   applyScene,
   runScenes,
   scenesAfterBattle,
+  scenesForDefeatedTrainers,
   scenesForMapEntry,
   scenesForNpcTalk,
 } from '../src/world/story/sceneRunner';
+import { applyTrainerVictory } from '../src/world/battleResults';
 import { formatLine, parseLine, toDialogue, KNOWN_SPEAKERS } from '../src/world/story/dialogue';
 import {
   JOURNAL_PAGES,
@@ -198,6 +200,47 @@ describe('scene runner', () => {
     expect(state.getFlag('journal-page-1')).toBe(true);
     expect(state.getFlag('summons-known')).toBe(true);
     expect(scenesAfterBattle(state, 'trial-ivy')).toEqual([]);
+  });
+
+  it('has no recovery scenes on a fresh save', () => {
+    const state = freshState();
+    expect(scenesForDefeatedTrainers(state)).toEqual([]);
+  });
+
+  it('recovers an interrupted trial victory from the saved defeat marker', () => {
+    const state = freshState();
+    applyTrainerVictory(state, TRAINERS['trial-ivy']);
+
+    // The trainer is beaten but the story never played. Game.lastOutcome is not
+    // serialised, so only the defeat marker survives the save/load round trip.
+    const reloaded = GameState.fromJSON(JSON.parse(JSON.stringify(state.toJSON())));
+    const pending = scenesForDefeatedTrainers(reloaded);
+    expect(ids(pending)).toEqual(['c2-ivy-after']);
+
+    runScenes(reloaded, pending);
+    expect(reloaded.getFlag('journal-page-1')).toBe(true);
+    expect(reloaded.getFlag('summons-known')).toBe(true);
+
+    // Running the scene records it, so a later reload must not replay it.
+    const again = GameState.fromJSON(JSON.parse(JSON.stringify(reloaded.toJSON())));
+    expect(scenesForDefeatedTrainers(again)).toEqual([]);
+  });
+
+  it('does not fire unearned after-scenes that have no required flags', () => {
+    const state = freshState();
+    // c7-nerys-after declares no `requires`; only Nerys' own defeat marker may
+    // unlock it, so surrounding trial progress must not leak it in.
+    state.setFlag('trial-6-cleared');
+    expect(ids(scenesForDefeatedTrainers(state))).not.toContain('c7-nerys-after');
+
+    applyTrainerVictory(state, TRAINERS['ace-nerys']);
+    expect(ids(scenesForDefeatedTrainers(state))).toContain('c7-nerys-after');
+  });
+
+  it('recovers the Champion aftermath from its durable marker', () => {
+    const state = freshState();
+    applyTrainerVictory(state, TRAINERS['champion-aurelia']);
+    expect(ids(scenesForDefeatedTrainers(state))).toContain('f-aurelia-after');
   });
 
   it('respects required and forbidden flags', () => {
