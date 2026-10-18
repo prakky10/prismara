@@ -6,7 +6,7 @@
  */
 
 import Phaser from 'phaser';
-import { COLORS, DEPTHS, FONTS, LAYOUT, VIEW_HEIGHT, VIEW_WIDTH } from './Theme';
+import { COLORS, DEPTHS, FONTS, LAYOUT, VIEW_HEIGHT, VIEW_WIDTH, mixColor } from './Theme';
 import { Panel } from './Panel';
 
 export interface TextBoxOptions {
@@ -21,6 +21,9 @@ export class TextBox extends Phaser.GameObjects.Container {
   private readonly panel: Panel;
   private readonly bodyText: Phaser.GameObjects.Text;
   private readonly nameTag: Phaser.GameObjects.Text;
+  private readonly nameTagBg: Phaser.GameObjects.Graphics;
+  private readonly boxWidth: number;
+  private readonly boxHeight: number;
   private readonly arrow: Phaser.GameObjects.Text;
 
   private pages: string[] = [];
@@ -51,12 +54,18 @@ export class TextBox extends Phaser.GameObjects.Container {
     this.panel = new Panel(scene, 0, 0, { width, height, glow: COLORS.panelGlow });
     this.add(this.panel);
 
+    this.boxWidth = width;
+    this.boxHeight = height;
+
+    // Speaker name tag: a brass tab straddling the top-left edge of the box.
+    this.nameTagBg = scene.add.graphics();
+    this.add(this.nameTagBg);
     this.nameTag = scene.add
-      .text(-width / 2 + 18, -height / 2 - 12, '', {
-        fontFamily: FONTS.body,
-        fontSize: '13px',
-        color: '#7fffe5',
-        fontStyle: 'bold',
+      .text(-width / 2 + 34, -height / 2 - 1, '', {
+        fontFamily: FONTS.display,
+        fontSize: '15px',
+        color: '#0b1020',
+        fontStyle: '700',
       })
       .setOrigin(0, 0.5);
     this.add(this.nameTag);
@@ -64,7 +73,7 @@ export class TextBox extends Phaser.GameObjects.Container {
     this.bodyText = scene.add.text(-width / 2 + 20, -height / 2 + 18, '', {
       fontFamily: FONTS.body,
       fontSize: '17px',
-      color: '#f2f6ff',
+      color: '#f4efe2',
       wordWrap: { width: width - 44 },
       lineSpacing: 6,
     });
@@ -74,7 +83,9 @@ export class TextBox extends Phaser.GameObjects.Container {
       .text(width / 2 - 22, height / 2 - 16, '\u25bc', {
         fontFamily: FONTS.body,
         fontSize: '14px',
-        color: '#7fffe5',
+        color: '#e8cf7a',
+        stroke: '#0b1020',
+        strokeThickness: 3,
       })
       .setOrigin(0.5, 0.5)
       .setVisible(false);
@@ -115,7 +126,7 @@ export class TextBox extends Phaser.GameObjects.Container {
     this.restY = restY;
     this.y = restY;
     this.setVisible(true);
-    this.nameTag.setText(speaker ?? '');
+    this.setSpeaker(speaker);
     this.setAlpha(0);
     this.visibilityTween = this.scene.tweens.add({
       targets: this,
@@ -131,6 +142,31 @@ export class TextBox extends Phaser.GameObjects.Container {
     this.pages = [text];
     this.pageIndex = 0;
     this.startPage();
+  }
+
+  /** Set (or clear) the speaker tab above the box. */
+  private setSpeaker(speaker?: string): void {
+    const g = this.nameTagBg;
+    g.clear();
+    this.nameTag.setText(speaker ?? '');
+    if (!speaker) return;
+    const w = this.nameTag.width + 32;
+    const h = 24;
+    const left = -this.boxWidth / 2 + 18;
+    const top = -this.boxHeight / 2 - 1 - h / 2;
+    g.fillStyle(COLORS.shadow, 0.35);
+    g.fillRoundedRect(left + 1, top + 3, w, h, 12);
+    g.fillStyle(mixColor(COLORS.brass, COLORS.brassDark, 0.5), 1);
+    g.fillRoundedRect(left, top, w, h, 12);
+    g.fillStyle(COLORS.brassLight, 1);
+    g.fillRoundedRect(left, top, w, h * 0.55, { tl: 12, tr: 12, bl: 0, br: 0 });
+    g.fillStyle(COLORS.brass, 1);
+    g.fillRoundedRect(left, top + h * 0.45, w, h * 0.55, { tl: 0, tr: 0, bl: 12, br: 12 });
+    g.lineStyle(1.5, COLORS.ink, 0.6);
+    g.strokeRoundedRect(left, top, w, h, 12);
+    // A little ivory dot, like a rivet.
+    g.fillStyle(COLORS.ivory, 0.9);
+    g.fillCircle(left + 13, top + h / 2, 3);
   }
 
   private startPage(): void {
@@ -166,12 +202,16 @@ export class TextBox extends Phaser.GameObjects.Container {
   private finishPage(): void {
     this.timer?.remove();
     this.timer = undefined;
-    if (this.showArrow && this.pageIndex < this.pages.length - 1) {
-      this.arrow.setVisible(true);
+    if (this.showArrow && !this.choiceActive) {
+      const restY = this.boxHeight / 2 - 16;
+      this.arrow.setVisible(true).setAlpha(1).setY(restY);
+      this.arrowTween?.stop();
+      // Blink and bob so it reads as "press confirm".
       this.arrowTween = this.scene.tweens.add({
         targets: this.arrow,
-        y: this.arrow.y + 4,
-        duration: 480,
+        y: restY + 4,
+        alpha: 0.25,
+        duration: 520,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',
@@ -246,7 +286,7 @@ export class TextBox extends Phaser.GameObjects.Container {
         .text(20, startY + index * 24, `${index === 0 ? '\u25b6' : ' '} ${option}`, {
           fontFamily: FONTS.body,
           fontSize: '16px',
-          color: index === 0 ? '#7fffe5' : '#f2f6ff',
+          color: index === 0 ? '#e8cf7a' : '#f4efe2',
         })
         .setOrigin(0, 0.5);
       this.add(t);
@@ -265,7 +305,7 @@ export class TextBox extends Phaser.GameObjects.Container {
     this.choiceTexts.forEach((text, index) => {
       const selected = index === this.choiceIndex;
       text.setText(`${selected ? '\u25b6' : ' '} ${this.choiceOptions[index]}`);
-      text.setColor(selected ? '#7fffe5' : '#f2f6ff');
+      text.setColor(selected ? '#e8cf7a' : '#f4efe2');
     });
   }
 

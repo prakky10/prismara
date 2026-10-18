@@ -10,7 +10,7 @@
  */
 
 import Phaser from 'phaser';
-import { COLORS, FONTS } from './Theme';
+import { COLORS, FONTS, mixColor } from './Theme';
 
 export interface MenuItem {
   /** Stable identifier returned by `confirm`. */
@@ -43,6 +43,8 @@ export interface MenuListOptions {
 }
 
 const PAD_LEFT = 12;
+/** Extra indent that leaves room for the selection arrow. */
+const ARROW_INDENT = 12;
 const PAD_RIGHT = 12;
 const GAP = 8;
 const MIN_LABEL = 28;
@@ -224,7 +226,7 @@ export class MenuList extends Phaser.GameObjects.Container {
 
     const baseX = col * columnWidth;
     const y = displayRow * this.rowHeight + this.rowHeight / 2;
-    const left = baseX + PAD_LEFT;
+    const left = baseX + PAD_LEFT + ARROW_INDENT;
     const right = baseX + columnWidth - PAD_RIGHT;
     const usable = Math.max(0, right - left);
 
@@ -237,7 +239,7 @@ export class MenuList extends Phaser.GameObjects.Container {
       disabled
         ? '#5c6b85'
         : selected
-          ? '#8fd6c4'
+          ? '#fff4cf'
           : item.color !== undefined
             ? `#${item.color.toString(16).padStart(6, '0')}`
             : '#f4ecd9',
@@ -268,7 +270,10 @@ export class MenuList extends Phaser.GameObjects.Container {
       this.fitText(row.text, prefix + item.label, labelRegion);
       row.text.setPosition(left, y - this.rowHeight * 0.18);
       this.fitText(row.sub, item.sublabel ?? '', labelRegion);
-      row.sub.setOrigin(0, 0.5).setPosition(left, y + this.rowHeight * 0.22).setVisible(true);
+      row.sub
+        .setOrigin(0, 0.5)
+        .setPosition(left, y + this.rowHeight * 0.22)
+        .setVisible(true);
     } else {
       row.sub.setFontSize(Math.max(8, this.fontSize - 3));
       let labelRegion: number;
@@ -317,10 +322,24 @@ export class MenuList extends Phaser.GameObjects.Container {
     if (visibleRow >= 0 && visibleRow < this.visibleRows) {
       const hx = col * columnWidth + 4;
       const hy = visibleRow * this.rowHeight + 2;
-      this.highlight.fillStyle(COLORS.cursor, 0.14);
-      this.highlight.fillRoundedRect(hx, hy, columnWidth - 8, this.rowHeight - 4, 6);
-      this.highlight.lineStyle(1, COLORS.cursor, 0.5);
-      this.highlight.strokeRoundedRect(hx, hy, columnWidth - 8, this.rowHeight - 4, 6);
+      const hw = columnWidth - 8;
+      const hh = this.rowHeight - 4;
+      const radius = Math.min(hh / 2, 12);
+      const g = this.highlight;
+      // Brass pill: soft glow, dusk-sea body, bright rim and a top sheen.
+      g.fillStyle(COLORS.brass, 0.1);
+      g.fillRoundedRect(hx - 2, hy - 2, hw + 4, hh + 4, radius + 2);
+      g.fillStyle(mixColor(COLORS.navyLight, COLORS.brass, 0.25), 0.9);
+      g.fillRoundedRect(hx, hy, hw, hh, radius);
+      g.fillStyle(COLORS.brassLight, 0.12);
+      g.fillRoundedRect(hx + 2, hy + 1, hw - 4, hh * 0.45, radius);
+      g.lineStyle(1.5, COLORS.brassLight, 0.9);
+      g.strokeRoundedRect(hx, hy, hw, hh, radius);
+      // Selection arrow.
+      const ax = hx + 10;
+      const ay = hy + hh / 2;
+      g.fillStyle(COLORS.brassLight, 1);
+      g.fillTriangle(ax - 3, ay - 4.5, ax - 3, ay + 4.5, ax + 4, ay);
     }
 
     const totalRows = Math.ceil(this.items.length / this.columns);

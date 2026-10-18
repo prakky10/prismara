@@ -27,15 +27,42 @@ export const COLORS = {
   cursor: 0x8fd6c4,
   danger: 0xe57373,
   gold: 0xd4af37,
+  /** Lighthouse / brass-and-dusk-sea palette. */
+  ivory: 0xf4efe2,
+  brass: 0xc9a227,
+  brassLight: 0xe8cf7a,
+  brassDark: 0x7a6420,
+  navy: 0x0b1020,
+  navyLight: 0x1a2a48,
+  navyMid: 0x142038,
+  sea: 0x2f7f8f,
+  seaLight: 0x8fd6c4,
 } as const;
 
+/** CSS hex string ("#rrggbb") for a numeric colour. */
+export function cssColor(color: number): string {
+  return `#${color.toString(16).padStart(6, '0')}`;
+}
+
+/** Linearly blend two 0xRRGGBB colours (t = 0 gives a, t = 1 gives b). */
+export function mixColor(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 255;
+  const ag = (a >> 8) & 255;
+  const ab = a & 255;
+  const r = Math.round(ar + (((b >> 16) & 255) - ar) * t);
+  const g = Math.round(ag + (((b >> 8) & 255) - ag) * t);
+  const bl = Math.round(ab + ((b & 255) - ab) * t);
+  return (r << 16) | (g << 8) | bl;
+}
+
 /**
- * Font stacks built only from faces a desktop browser already ships, so the
- * game never depends on the network.
+ * Font stacks. Display/body faces come from Google Fonts (see index.html) with
+ * system fallbacks, so the game still renders if the network is unavailable.
  */
 export const FONTS = {
   pixel: '"Lucida Console", "DejaVu Sans Mono", "Courier New", monospace',
-  body: '"Segoe UI", "Trebuchet MS", system-ui, sans-serif',
+  body: '"Nunito", "Segoe UI", "Trebuchet MS", system-ui, sans-serif',
+  display: '"Baloo 2", "Nunito", "Segoe UI", "Trebuchet MS", system-ui, sans-serif',
 } as const;
 
 export const FONT_SIZES = {

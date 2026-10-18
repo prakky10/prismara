@@ -3,7 +3,7 @@
  */
 
 import Phaser from 'phaser';
-import { COLORS, DEPTHS, FONTS, VIEW_HEIGHT, VIEW_WIDTH } from './Theme';
+import { COLORS, DEPTHS, FONTS, VIEW_HEIGHT, VIEW_WIDTH, mixColor } from './Theme';
 
 /** A short message sliding in from the top of the screen. */
 export function toast(
@@ -15,18 +15,25 @@ export function toast(
   const container = scene.add.container(VIEW_WIDTH / 2, 46);
   const label = scene.add
     .text(0, 0, text, {
-      fontFamily: FONTS.body,
+      fontFamily: FONTS.display,
       fontSize: '15px',
-      color: '#f2f6ff',
-      fontStyle: 'bold',
+      color: '#f4efe2',
+      fontStyle: '700',
     })
     .setOrigin(0.5);
   const width = label.width + 34;
   const bg = scene.add.graphics();
-  bg.fillStyle(COLORS.ink, 0.9);
+  // Shadow, navy body with a sheen, accent rim and a brass outer line.
+  bg.fillStyle(COLORS.shadow, 0.4);
+  bg.fillRoundedRect(-width / 2 + 1, -15 + 4, width, 30, 15);
+  bg.fillStyle(COLORS.navy, 0.95);
   bg.fillRoundedRect(-width / 2, -15, width, 30, 15);
-  bg.lineStyle(2, color, 1);
+  bg.fillStyle(COLORS.navyLight, 0.7);
+  bg.fillRoundedRect(-width / 2 + 2, -14, width - 4, 13, { tl: 13, tr: 13, bl: 4, br: 4 });
+  bg.lineStyle(2, mixColor(color, COLORS.brassDark, 0.2), 1);
   bg.strokeRoundedRect(-width / 2, -15, width, 30, 15);
+  bg.lineStyle(1, COLORS.ivory, 0.25);
+  bg.strokeRoundedRect(-width / 2 + 2, -13, width - 4, 26, 13);
 
   container.add([bg, label]);
   container.setDepth(DEPTHS.overlay).setAlpha(0).setY(-10);
@@ -64,10 +71,10 @@ export function damageNumber(
     // In reduced-effects mode the number simply fades.
     const label = scene.add
       .text(x, y, kind === 'heal' ? `+${amount}` : `${amount}`, {
-        fontFamily: FONTS.body,
+        fontFamily: FONTS.display,
         fontSize: '22px',
         color: kind === 'heal' ? '#7fff9f' : '#ffffff',
-        fontStyle: 'bold',
+        fontStyle: '700',
       })
       .setOrigin(0.5)
       .setDepth(DEPTHS.overlay);
@@ -96,10 +103,10 @@ export function damageNumber(
 
   const label = scene.add
     .text(x, y, kind === 'miss' ? 'Miss' : kind === 'heal' ? `+${amount}` : `${amount}`, {
-      fontFamily: FONTS.body,
+      fontFamily: FONTS.display,
       fontSize: crit ? '32px' : '24px',
       color,
-      fontStyle: 'bold',
+      fontStyle: '700',
       stroke: '#0b1020',
       strokeThickness: 4,
     })
@@ -150,12 +157,12 @@ export function banner(
 ): void {
   const label = scene.add
     .text(VIEW_WIDTH / 2, VIEW_HEIGHT / 2 - 40, text, {
-      fontFamily: FONTS.body,
+      fontFamily: FONTS.display,
       fontSize: '30px',
       color: `#${color.toString(16).padStart(6, '0')}`,
-      fontStyle: 'bold',
+      fontStyle: '700',
       stroke: '#0b1020',
-      strokeThickness: 6,
+      strokeThickness: 7,
     })
     .setOrigin(0.5)
     .setDepth(DEPTHS.overlay)
@@ -184,10 +191,10 @@ export function banner(
 export function xpPopup(scene: Phaser.Scene, x: number, y: number, amount: number): void {
   const label = scene.add
     .text(x, y, `+${amount} EXP`, {
-      fontFamily: FONTS.body,
+      fontFamily: FONTS.display,
       fontSize: '14px',
       color: '#2ea8ff',
-      fontStyle: 'bold',
+      fontStyle: '700',
       stroke: '#0b1020',
       strokeThickness: 3,
     })
