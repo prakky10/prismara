@@ -66,6 +66,8 @@ export function getThreeRenderer(): WebGLRenderer {
       antialias: true,
       alpha: false,
       preserveDrawingBuffer: true,
+      // Characters mark the stencil so their silhouettes show through walls and trees.
+      stencil: true,
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

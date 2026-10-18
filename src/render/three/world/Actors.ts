@@ -31,6 +31,51 @@ export function disposeRig(rig: Rig): void {
   for (const m of rig.mats) m.dispose();
 }
 
+/** Draw order: actors after the rest of the opaque world, silhouettes after the actors. */
+const ACTOR_ORDER = 2;
+const SILHOUETTE_ORDER = 3;
+
+/**
+ * Give every body part a ghost twin that only draws where something else hides it, so a
+ * character standing behind a house or a tree still reads as a soft silhouette.
+ *
+ * The body writes 1 into the stencil wherever it is actually visible; the ghost passes the
+ * depth test only when hidden (GreaterDepth) and skips stencilled pixels, so a character's own
+ * limbs never ghost through its torso.
+ */
+function addSilhouette(body: THREE.Group, color: number, mats: THREE.Material[]): void {
+  const ghost = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+    depthFunc: THREE.GreaterDepth,
+    stencilWrite: true,
+    stencilRef: 1,
+    stencilFunc: THREE.NotEqualStencilFunc,
+    stencilZPass: THREE.KeepStencilOp,
+  });
+  mats.push(ghost);
+  const parts: THREE.Mesh[] = [];
+  body.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) parts.push(obj);
+  });
+  for (const part of parts) {
+    const mat = part.material as THREE.Material;
+    mat.stencilWrite = true;
+    mat.stencilRef = 1;
+    mat.stencilFunc = THREE.AlwaysStencilFunc;
+    mat.stencilZPass = THREE.ReplaceStencilOp;
+    part.renderOrder = ACTOR_ORDER;
+    const twin = new THREE.Mesh(part.geometry, ghost);
+    twin.position.copy(part.position);
+    twin.quaternion.copy(part.quaternion);
+    twin.scale.copy(part.scale);
+    twin.renderOrder = SILHOUETTE_ORDER;
+    part.parent?.add(twin);
+  }
+}
+
 function idSeed(id: string): number {
   let h = 7;
   for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) | 0;
@@ -167,6 +212,7 @@ export function buildActor(actor: ActorSpec): Rig {
     put(new THREE.SphereGeometry(0.236, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.46), capM, head, 0, 0.15, -0.005);
     put(new THREE.BoxGeometry(0.26, 0.022, 0.15), capM, head, 0, 0.17, 0.22);
   }
+  addSilhouette(body, actor.id === 'player' ? 0xffb35c : 0x9fd4ff, mats);
   return { root, body, head, legL, legR, armL, armR, torso, geos, mats, walk: 0, phase: 0, seed, initialised: false };
 }
 
