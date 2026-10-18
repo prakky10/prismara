@@ -10,6 +10,8 @@ import * as THREE from 'three';
 import type Phaser from 'phaser';
 import { ThreeSurface } from './ThreeSurface';
 import { createCreatureModel } from './CreatureModels';
+import { Kit } from './arena/kit';
+import { buildArena, type ArenaBuild } from './arena/biomes';
 
 type Side = 'player' | 'enemy';
 type Mood = 'idle' | 'attack' | 'hurt' | 'faint' | 'celebrate';
@@ -67,14 +69,14 @@ const LOOKS: Record<string, BiomeLook> = {
   summit: { sky: 0xbcd8ff, fog: 0xdceaff, fogNear: 22, fogFar: 58, ground: 0xdfe9f5, groundEdge: 0xffffff, water: null, foliage: 0x8aa0b8, rock: 0x9fb0c4, distant: 0x7f93aa, mountain: 0xa8bcd4, hemiSky: 0xffffff, hemiGround: 0x8090a0, sun: 0xfff8e8 },
 };
 
-function hashUnit(n: number): number {
-  const s = Math.sin(n * 12.9898) * 43758.5453;
-  return s - Math.floor(s);
-}
-
 export class Battle3D {
   private readonly world: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
+  /** Fixed twin of the camera: creature placement never follows the idle drift. */
+  private readonly rayCamera: THREE.PerspectiveCamera;
+  private readonly kit = new Kit();
+  private readonly arena: ArenaBuild;
+  private readonly reduced: boolean;
   private readonly surface: ThreeSurface;
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
@@ -88,20 +90,26 @@ export class Battle3D {
   constructor(owner: Phaser.Scene, biome: string) {
     const look = LOOKS[biome] ?? LOOKS.meadow;
 
+    this.reduced = owner.registry.get('reducedEffects') === true;
     this.world = new THREE.Scene();
-    this.world.background = new THREE.Color(look.sky);
-    this.world.fog = new THREE.Fog(look.fog, look.fogNear, look.fogFar);
 
     this.camera = new THREE.PerspectiveCamera(42, 960 / 540, 0.1, 200);
     this.camera.position.set(0, 6, 16);
     this.camera.lookAt(0, 1, 0);
     this.camera.updateMatrixWorld();
+    this.rayCamera = this.camera.clone();
+    this.rayCamera.updateMatrixWorld();
 
-    this.buildGround(look);
-    this.buildFoliage(look, biome);
-    this.buildRocks(look);
-    this.buildDistant(look);
-    this.buildMountains(look);
+    // Worn battle pads sit exactly under the two creature stage points.
+    const pad = (px: number, py: number, r: number) => {
+      this.pointer.set((px / 960) * 2 - 1, 1 - (py / 540) * 2);
+      this.raycaster.setFromCamera(this.pointer, this.rayCamera);
+      const p = this.raycaster.ray.intersectPlane(this.groundPlane, this.hit);
+      return { x: p ? p.x : 0, z: p ? p.z : 0, r };
+    };
+    this.arena = buildArena(biome, this.world, this.kit, [pad(200, 400, 2.5), pad(720, 250, 2.1)], this.reduced);
+    this.world.background = new THREE.Color(this.arena.fog.color);
+    this.world.fog = new THREE.Fog(this.arena.fog.color, this.arena.fog.near, this.arena.fog.far);
     this.buildLights(look);
 
     this.surface = new ThreeSurface(
@@ -126,7 +134,7 @@ export class Battle3D {
     const root = slot.handle.root;
 
     this.pointer.set((pose.x / 960) * 2 - 1, 1 - (pose.y / 540) * 2);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.raycaster.setFromCamera(this.pointer, this.rayCamera);
     const point = this.raycaster.ray.intersectPlane(this.groundPlane, this.hit);
     if (point) root.position.set(point.x, 0, point.z);
 
@@ -153,6 +161,12 @@ export class Battle3D {
   }
 
   private animate(seconds: number): void {
+    if (!this.reduced) {
+      this.arena.tick(seconds);
+      // Subtle idle drift; the look-at target stays fixed so the stage reads the same.
+      this.camera.position.set(Math.sin(seconds * 0.13) * 0.22, 6 + Math.sin(seconds * 0.17) * 0.07, 16 + Math.sin(seconds * 0.09) * 0.12);
+      this.camera.lookAt(0, 1, 0);
+    }
     if (this.player) this.player.handle.update(seconds, 'idle');
     if (this.enemy) this.enemy.handle.update(seconds, 'idle');
   }
@@ -185,178 +199,6 @@ export class Battle3D {
     const baseOpacity = materials.map((material) => material.opacity);
     this.world.add(handle.root);
     return { handle, id, shiny, materials, baseOpacity };
-  }
-
-  private buildGround(look: BiomeLook): void {
-    const groundGeo = new THREE.CircleGeometry(look.water !== null ? 9.4 : 16, 56);
-    const groundMat = new THREE.MeshStandardMaterial({ color: look.ground, roughness: 1, metalness: 0 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.world.add(ground);
-    this.disposables.push(groundGeo, groundMat);
-
-    const ringGeo = new THREE.RingGeometry(8.2, 9, 64);
-    const ringMat = new THREE.MeshStandardMaterial({ color: look.groundEdge, roughness: 1, metalness: 0 });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.012;
-    ring.receiveShadow = true;
-    this.world.add(ring);
-    this.disposables.push(ringGeo, ringMat);
-
-    if (look.water !== null) {
-      const waterGeo = new THREE.RingGeometry(9.4, 16, 64);
-      const waterMat = new THREE.MeshStandardMaterial({ color: look.water, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.85 });
-      const water = new THREE.Mesh(waterGeo, waterMat);
-      water.rotation.x = -Math.PI / 2;
-      water.position.y = -0.06;
-      this.world.add(water);
-      this.disposables.push(waterGeo, waterMat);
-    }
-  }
-
-  private buildFoliage(look: BiomeLook, biome: string): void {
-    // Volcano and cave keep rocky spires instead of lush leaf canopies.
-    const rocky = biome === 'volcano' || biome === 'cave';
-    const matrix = new THREE.Matrix4();
-
-    // Near foliage: real trunks plus rounded canopies (crystal cones when rocky).
-    const treeCount = 40;
-    const trunkGeo = new THREE.CylinderGeometry(0.12, 0.16, 1, 5);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: rocky ? look.rock : 0x6b4a2a, roughness: 1, metalness: 0 });
-    const canopyGeo = rocky
-      ? new THREE.ConeGeometry(0.85, 1.9, 5)
-      : new THREE.IcosahedronGeometry(0.9, 0);
-    const canopyMat = new THREE.MeshStandardMaterial({ color: rocky ? look.rock : look.foliage, roughness: 1, metalness: 0 });
-    const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, treeCount);
-    const canopies = new THREE.InstancedMesh(canopyGeo, canopyMat, treeCount);
-    for (const tree of [trunks, canopies]) {
-      tree.castShadow = true;
-      tree.receiveShadow = true;
-      tree.frustumCulled = false;
-    }
-    for (let i = 0; i < treeCount; i++) {
-      const angle = Math.PI + (i / treeCount) * Math.PI + hashUnit(i + 1) * 0.08;
-      const radius = 10.2 + hashUnit(i + 11) * 3.8;
-      const scale = 0.7 + hashUnit(i + 21) * 0.7;
-      const x = Math.cos(angle) * radius;
-      const z = Math.sin(angle) * radius;
-      const trunkH = 1.5 * scale;
-      matrix.makeScale(scale, trunkH, scale);
-      matrix.setPosition(x, trunkH / 2, z);
-      trunks.setMatrixAt(i, matrix);
-      const canopyScale = scale * (rocky ? 0.9 : 1.15);
-      matrix.makeScale(canopyScale, canopyScale * (rocky ? 1.35 : 1), canopyScale);
-      matrix.setPosition(x, trunkH + canopyScale * (rocky ? 0.4 : 0.55), z);
-      canopies.setMatrixAt(i, matrix);
-    }
-    trunks.instanceMatrix.needsUpdate = true;
-    canopies.instanceMatrix.needsUpdate = true;
-    this.world.add(trunks, canopies);
-    this.disposables.push(trunkGeo, trunkMat, canopyGeo, canopyMat);
-
-    // Grass clumps ring the arena edge (radius 7.5..10), leaving the center and
-    // the fighters at x\u00b15, z\u00b14 clear for legibility.
-    const grassCount = 120;
-    const grassGeo = new THREE.ConeGeometry(0.28, 0.6, 4);
-    const grassMat = new THREE.MeshStandardMaterial({ color: look.foliage, roughness: 1, metalness: 0 });
-    const grass = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
-    grass.castShadow = true;
-    grass.frustumCulled = false;
-    for (let i = 0; i < grassCount; i++) {
-      const angle = hashUnit(i + 401) * Math.PI * 2;
-      const radius = 7.5 + hashUnit(i + 411) * 2.5;
-      const scale = 0.6 + hashUnit(i + 421) * 0.9;
-      matrix.makeScale(scale, scale, scale);
-      matrix.setPosition(Math.cos(angle) * radius, scale * 0.3, Math.sin(angle) * radius);
-      grass.setMatrixAt(i, matrix);
-    }
-    grass.instanceMatrix.needsUpdate = true;
-    this.world.add(grass);
-    this.disposables.push(grassGeo, grassMat);
-
-    // Wildflowers only where the biome is lush, not on lava or cave floor.
-    if (!rocky) {
-      const flowerCount = 30;
-      const flowerGeo = new THREE.IcosahedronGeometry(0.16, 0);
-      const flowerMat = new THREE.MeshStandardMaterial({ color: 0xffd47a, roughness: 1, metalness: 0 });
-      const flowers = new THREE.InstancedMesh(flowerGeo, flowerMat, flowerCount);
-      flowers.frustumCulled = false;
-      for (let i = 0; i < flowerCount; i++) {
-        const angle = hashUnit(i + 501) * Math.PI * 2;
-        const radius = 7.5 + hashUnit(i + 511) * 2.5;
-        const scale = 0.7 + hashUnit(i + 521) * 0.6;
-        matrix.makeScale(scale, scale, scale);
-        matrix.setPosition(Math.cos(angle) * radius, 0.28, Math.sin(angle) * radius);
-        flowers.setMatrixAt(i, matrix);
-      }
-      flowers.instanceMatrix.needsUpdate = true;
-      this.world.add(flowers);
-      this.disposables.push(flowerGeo, flowerMat);
-    }
-  }
-
-  private buildRocks(look: BiomeLook): void {
-    const count = 26;
-    const geo = new THREE.IcosahedronGeometry(0.5, 0);
-    const mat = new THREE.MeshStandardMaterial({ color: look.rock, roughness: 1, metalness: 0 });
-    const mesh = new THREE.InstancedMesh(geo, mat, count);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
-    const matrix = new THREE.Matrix4();
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2 + hashUnit(i + 101) * 0.3;
-      const radius = 9.2 + hashUnit(i + 111) * 4.6;
-      const scale = 0.4 + hashUnit(i + 121) * 0.8;
-      matrix.makeScale(scale, scale * 0.8, scale);
-      matrix.setPosition(Math.cos(angle) * radius, scale * 0.35, Math.sin(angle) * radius);
-      mesh.setMatrixAt(i, matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-    this.world.add(mesh);
-    this.disposables.push(geo, mat);
-  }
-
-  private buildDistant(look: BiomeLook): void {
-    const count = 72;
-    const geo = new THREE.ConeGeometry(0.9, 3.2, 5);
-    const mat = new THREE.MeshStandardMaterial({ color: look.distant, roughness: 1, metalness: 0 });
-    const mesh = new THREE.InstancedMesh(geo, mat, count);
-    mesh.frustumCulled = false;
-    const matrix = new THREE.Matrix4();
-    for (let i = 0; i < count; i++) {
-      const angle = Math.PI + (i / count) * Math.PI + hashUnit(i + 201) * 0.08;
-      const radius = 15.5 + hashUnit(i + 211) * 3.2;
-      const scale = 0.8 + hashUnit(i + 221) * 0.8;
-      matrix.makeScale(scale, scale * (0.9 + hashUnit(i + 231) * 0.6), scale);
-      matrix.setPosition(Math.cos(angle) * radius, scale * 1.6, Math.sin(angle) * radius);
-      mesh.setMatrixAt(i, matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-    this.world.add(mesh);
-    this.disposables.push(geo, mat);
-  }
-
-  private buildMountains(look: BiomeLook): void {
-    const count = 12;
-    const geo = new THREE.ConeGeometry(2.6, 6.5, 6);
-    const mat = new THREE.MeshStandardMaterial({ color: look.mountain, roughness: 1, metalness: 0 });
-    const mesh = new THREE.InstancedMesh(geo, mat, count);
-    mesh.frustumCulled = false;
-    const matrix = new THREE.Matrix4();
-    for (let i = 0; i < count; i++) {
-      const angle = Math.PI + (i / count) * Math.PI + hashUnit(i + 331) * 0.08;
-      const radius = 23 + hashUnit(i + 301) * 7;
-      const scale = 0.9 + hashUnit(i + 311) * 0.9;
-      matrix.makeScale(scale, scale * (1 + hashUnit(i + 321) * 0.7), scale);
-      matrix.setPosition(Math.cos(angle) * radius, scale * 3.2, Math.sin(angle) * radius);
-      mesh.setMatrixAt(i, matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-    this.world.add(mesh);
-    this.disposables.push(geo, mat);
   }
 
   private buildLights(look: BiomeLook): void {
@@ -398,6 +240,7 @@ export class Battle3D {
 
     for (const item of this.disposables) item.dispose();
     this.disposables.length = 0;
+    this.kit.dispose();
     this.world.clear();
   }
 }
