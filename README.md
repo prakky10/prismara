@@ -83,3 +83,7 @@ npm run audit:world # check map warps and connectivity
 ## Credits
 
 Prismara is a fan-made, original game inspired by the creature-collecting RPG genre. All creatures, characters, places and story are original to this project. It is not affiliated with or endorsed by Nintendo, Game Freak or The Pokémon Company.
+
+## License
+
+Licensed under the [MIT License](LICENSE).
