@@ -277,7 +277,9 @@ export const TILE_SPECS: Record<TileName, TileSpec> = {
 };
 
 export function isSolid(name: TileName): boolean {
-  return TILE_SPECS[name]?.solid ?? true;
+  // Specs omit `solid` for open ground, so only an unknown tile defaults to solid.
+  const spec = TILE_SPECS[name];
+  return spec ? spec.solid === true : true;
 }
 
 export function isEncounterTile(name: TileName): boolean {

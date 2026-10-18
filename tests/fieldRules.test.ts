@@ -325,15 +325,6 @@ describe('inSightLine', () => {
 
 /* ------------------------------------------------------- lineOfSightClear -- */
 
-/*
- * KNOWN BUG (src/render/tiles/TilePainter.ts, isSolid): it returns
- * `TILE_SPECS[name]?.solid ?? true`, so every tile whose spec leaves `solid`
- * unset (grass, path, sand, tallgrass, bridge, door, ...) counts as solid.
- * lineOfSightClear therefore blocks trainer sight across open ground. Only
- * specs that set `solid: false` explicitly, such as `ledge`, read as open.
- * The sight tests below use a `ledge` floor so they exercise this module's
- * logic; the grass case is pinned with it.fails until isSolid is fixed.
- */
 describe('lineOfSightClear', () => {
   const OPEN = 'ledge';
 
@@ -342,7 +333,7 @@ describe('lineOfSightClear', () => {
     expect(lineOfSightClear(gridOf(5, 5, OPEN), 0, 0, 0, 4)).toBe(true);
   });
 
-  it.fails('is clear along an open grass path (blocked by isSolid default, see note)', () => {
+  it('is clear along an open grass path', () => {
     expect(lineOfSightClear(gridOf(5, 5, 'grass'), 0, 0, 4, 0)).toBe(true);
   });
 

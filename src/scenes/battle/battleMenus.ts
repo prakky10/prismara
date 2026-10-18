@@ -132,6 +132,12 @@ export function arenaBiomeFor(mapId: string): string {
     'route-7': 'forest',
     'duskmoor-ruins': 'ruins',
     'prism-summit': 'summit',
+    // Trial halls fight in their town's arena.
+    'thistlebrook-trial': 'forest',
+    'voltspire-trial': 'city',
+    'tidehaven-trial': 'beach',
+    'ashfall-trial': 'volcano',
+    'geode-trial': 'cave',
   };
   return zones[mapId] ?? 'meadow';
 }
