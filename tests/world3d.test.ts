@@ -34,6 +34,37 @@ describe('3D region geometry', () => {
       view.dispose();
     }
   });
+  it('furnishes every indoor map with decoration', () => {
+    const indoor = Object.values(MAPS).filter((m) => m.indoor);
+    expect(indoor).toHaveLength(19);
+    const count = (map: (typeof indoor)[number]) => {
+      const view = new World3D(map, false);
+      let meshes = 0;
+      let instances = 0;
+      let lights = 0;
+      view.scene.traverse((node) => {
+        if (node instanceof THREE.PointLight) lights++;
+        if (!(node instanceof THREE.Mesh)) return;
+        meshes++;
+        if (node instanceof THREE.InstancedMesh) instances += node.count;
+      });
+      view.dispose();
+      return { meshes, instances, lights };
+    };
+    for (const map of indoor) {
+      const got = count(map);
+      // A bare room is the ground plus a handful of wall blocks; decorated rooms add merged furniture and instanced props.
+      expect(got.meshes, map.id).toBeGreaterThan(10);
+      expect(got.instances, map.id).toBeGreaterThan(20);
+      expect(got.lights, map.id).toBeGreaterThan(0);
+      expect(got.meshes, map.id).toBeLessThan(120);
+    }
+    const reduced = new World3D(MAPS['lumen-lab'], true);
+    let reducedLights = 0;
+    reduced.scene.traverse((node) => { if (node instanceof THREE.PointLight) reducedLights++; });
+    expect(reducedLights).toBeLessThanOrEqual(2);
+    reduced.dispose();
+  });
   it('fades a foreground building without fading instanced foliage or floor', () => {
     const view = new World3D(MAPS['emberleaf-town'], false);
     const opacities = new Map<THREE.InstancedMesh, number>();

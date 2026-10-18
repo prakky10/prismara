@@ -3,6 +3,7 @@ import { tileNameFor, type MapDef } from '../../world/maps';
 import { fbm, hash2, smoothstep } from './world/Noise';
 import { Mesher } from './world/Mesher';
 import { grainTexture, plankTexture, rippleTexture, shingleTexture } from './world/Textures';
+import { buildInterior, interiorTheme } from './world/Interiors';
 
 /** One authored building: meshes that can be ray-tested and materials that fade as a unit. */
 export interface TerrainBuilding {
@@ -68,6 +69,7 @@ export function createWorldTerrain(map: MapDef, reducedEffects = false): WorldTe
   const indoor = map.indoor === true;
   const snowy = map.biome === 'summit';
   const grain = tex(grainTexture());
+  const theme = indoor ? interiorTheme(map) : null;
 
   /* ------------------------------------------------------------ geometry */
   const box = keep(new THREE.BoxGeometry(1, 1, 1));
@@ -191,6 +193,7 @@ export function createWorldTerrain(map: MapDef, reducedEffects = false): WorldTe
     const pal = PAL_COLORS.get(k) ?? [new THREE.Color(0x808080), new THREE.Color(0x707070)];
     const t = fbm(px * 0.23, pz * 0.23, 40 + k, 3);
     out.copy(pal[0]).lerp(pal[1], Math.min(1, Math.max(0, (t - 0.25) * 2.0)));
+    if (theme && k === K.Wood) out.setHex(theme.floorA).lerp(scratch.setHex(theme.floorB), Math.min(1, Math.max(0, (t - 0.25) * (theme.checker ? 0.5 : 2.0))));
     let v = 1 + (hash2(Math.round(px * SUB), Math.round(pz * SUB), k) - 0.5) * 0.07;
     if (k === K.Cave || k === K.Ruin || k === K.Crystal || k === K.Wood) v *= 0.92 + hash2(ti, tj, 77) * 0.16;
     if (k === K.Path && hash2(Math.round(px * 7), Math.round(pz * 7), 5) > 0.93) v *= 0.84;
@@ -275,7 +278,7 @@ export function createWorldTerrain(map: MapDef, reducedEffects = false): WorldTe
   groundG.setIndex(new THREE.BufferAttribute(gIdx, 1));
   groundG.computeVertexNormals();
   groundG.computeBoundingSphere();
-  const plank = indoor ? tex(plankTexture()) : null;
+  const plank = indoor && !theme?.checker ? tex(plankTexture()) : null;
   const groundM = mat({ vertexColors: true, map: plank ?? grain, roughness: 0.95 });
   const ground = new THREE.Mesh(groundG, groundM);
   ground.receiveShadow = true;
@@ -600,6 +603,8 @@ export function createWorldTerrain(map: MapDef, reducedEffects = false): WorldTe
       put(box, signM, cx, 0.72, cz + 0.04, 0.52, 0.3, 0.03);
       put(box, woodM, cx, 0.77, cz + 0.06, 0.34, 0.035, 0.02);
       put(box, woodM, cx, 0.68, cz + 0.06, 0.28, 0.035, 0.02);
+    } else if (indoor && (n === 'wall' || n === 'window' || n === 'door')) {
+      // Interior walls, counters and doorways are built by Interiors.ts.
     } else if (n === 'wall' && (indoor || !seen.has(x + ',' + y))) wallBlock(x, y, indoor ? 1.45 : 1.3, 0x7a5638);
     else if (n === 'window' && (indoor || !seen.has(x + ',' + y))) {
       wallBlock(x, y, indoor ? 1.45 : 1.3, 0x7a5638);
@@ -656,6 +661,8 @@ export function createWorldTerrain(map: MapDef, reducedEffects = false): WorldTe
     root.add(mesh);
   }
 
+  const interior = indoor ? buildInterior(map, root, reducedEffects) : null;
+
   /* --------------------------------------------------------------- smoke */
   let smokeMesh: THREE.InstancedMesh | null = null;
   if (smoke.length && !reducedEffects) {
@@ -695,10 +702,12 @@ export function createWorldTerrain(map: MapDef, reducedEffects = false): WorldTe
       cryM.emissiveIntensity = 0.4 + Math.sin(seconds * 1.7) * 0.15;
       magM.emissiveIntensity = 0.7 + Math.sin(seconds * 3) * 0.25;
       animateSmoke(seconds);
+      interior?.update(seconds);
     },
     dispose() {
       if (dead) return;
       dead = true;
+      interior?.dispose();
       root.traverse((o) => { const m = o as THREE.InstancedMesh; if (m.isInstancedMesh) m.dispose(); });
       for (const g of geos) g.dispose();
       for (const m of mats) m.dispose();
