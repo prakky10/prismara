@@ -6,7 +6,7 @@
  * Battle scene turns a `TrainerDef` into a `BattleState`.
  */
 
-import { getSpecies, rivalStarterFor, type CreatureId } from '../data/creatures';
+import { rivalStarterFor, type CreatureId } from '../data/creatures';
 import type { AITier } from '../battle/BattleState';
 import { evolutionLine } from '../data/creatures';
 
@@ -125,7 +125,7 @@ export const TRAINERS: Record<string, TrainerDef> = {
     dialogue: {
       intro: ['I only battle trainers worth my time.', 'Impress me.'],
       defeat: ['...Impressive.', 'Take this as respect, not charity.'],
-      after: ['The Champion waits at Prism Summit. Earn all six Trophies first.'],
+      after: ['Aurelia stopped teaching a year ago. Go and see why.'],
     },
   },
 
@@ -138,12 +138,9 @@ export const TRAINERS: Record<string, TrainerDef> = {
       { speciesId: 'duskmaw', level: 12 },
     ],
     dialogue: {
-      intro: [
-        'Voss says the twilight is a kindness.',
-        'So this wood stays dark, and nobody gets hurt.',
-      ],
-      defeat: ['You fight like the fracture never scared you.', 'Voss said nobody would ever fight back.'],
-      after: ['The wood is clear. Ivy waits back in Thistlebrook to test you.'],
+      intro: ['Voss says the twilight is a kindness.', 'Orders: slow Edda’s child. No harm done.'],
+      defeat: ['You fight like the fracture never scared you.', 'Voss said nobody would fight back.'],
+      after: ['The wood is clear. Ivy waits in Thistlebrook to test you.'],
     },
     setsFlag: 'eclipse-forest-cleared',
   },
@@ -155,7 +152,7 @@ export const TRAINERS: Record<string, TrainerDef> = {
       { speciesId: 'duskmaw', level: 19 },
     ],
     dialogue: {
-      intro: ['This power plant feeds the altar.', 'We drain it so Voss can finish the rite.'],
+      intro: ['This plant feeds the altar.', 'We drain it so the glass stays warm.'],
       defeat: ['Ugh... Voss will not be pleased.', 'He swore the turbines would never fail him.'],
       after: ['The plant is Volta\u2019s again. She is waiting for a real challenger.'],
     },
@@ -170,14 +167,13 @@ export const TRAINERS: Record<string, TrainerDef> = {
       { speciesId: 'shadeling', level: 40 },
     ],
     dialogue: {
-      intro: [
-        'I was a keeper once, before the fracture taught me that light only breaks.',
-        'So I froze this world in twilight, where nothing can ever shatter again.',
-      ],
-      defeat: ['The ritual slows, but the cold I set will not thaw.', 'You cannot unlearn what the fracture taught me.'],
-      after: ['Climb Prism Summit. Aurelia will weigh your light before the altar.'],
+      intro: ['You carry her light. Forgive me.', 'I cannot let the cold go. Not yet.'],
+      defeat: ['Six lights, and not one of them broke.', 'Perhaps I have feared the wrong thing.'],
+      victory: ['Rest, child. Come back stronger.', 'I will keep the cold until you do.'],
+      after: ['Go to the Summit. Aurelia owes you the truth.'],
     },
     setsFlag: 'eclipse-ritual-broken',
+    requiresFlag: 'trial-6-cleared',
   },
 
   /* ------------------------------------------------------- Trial Masters -- */
@@ -266,9 +262,9 @@ export const TRAINERS: Record<string, TrainerDef> = {
       { speciesId: 'umbrawraith', level: 46 },
     ],
     dialogue: {
-      intro: ['I write poems about the dark that nobody reads.', 'Show me you can remember what the twilight forgot.'],
-      defeat: ['A verse worth keeping.', 'The Twilight Trophy is yours — its remembrance grants Night Sight.'],
-      after: ['Follow Night Sight into the altar and stop Voss.'],
+      intro: ['I write poems about the dark that nobody reads.', 'Show me you can remember what the twilight keeps.'],
+      defeat: ['A verse worth keeping.', 'The Twilight Trophy is yours. Its remembrance grants Night Sight.'],
+      after: ['Voss is waiting at the altar. Be gentle with him.'],
     },
     setsFlag: 'trial-6-cleared',
   },
@@ -288,14 +284,12 @@ export const TRAINERS: Record<string, TrainerDef> = {
     dialogue: {
       intro: [
         'Six Trophies. One summit. I am the last test.',
-        'I kept this beacon the night your mother vanished; I will not watch its light die twice.',
-        'Show me a heart that carries six virtues without breaking.',
+        'I led the Concord. I will tell you everything.',
+        'First, show me a heart that will not break.',
       ],
-      defeat: [
-        'Wonderful. Truly wonderful.',
-        'Prism Summit is yours. Go — Aetherion waits above the final beacon.',
-      ],
-      after: ['Climb the last stair. The final flame has never once gone out.'],
+      defeat: ['Wonderful. Truly wonderful.', 'The Lens is yours. The last stair is open.'],
+      victory: ['Not yet. Rest, and try again.'],
+      after: ['The altar waits for your six Trophies.', 'After that, the door is open to every trainer.'],
     },
     setsFlag: 'champion-defeated',
   },
@@ -344,44 +338,40 @@ const FILLERS: Record<string, CreatureId[]> = {
   sproutle: ['mossprite', 'vinesnap', 'shroomble'],
 };
 
-/** Rival dialogue, which changes with the story beat. */
-export function rivalDialogue(
-  battleIndex: number,
-  playerName: string,
-  playerStarter: CreatureId,
-): TrainerDialogue {
-  const starterName = getSpecies(rivalStarterFor(playerStarter)).name;
+/**
+ * Rival dialogue, which changes with the story beat. Lines are templates:
+ * `{player}` and `{rival}` are replaced at display time (see story/dialogue.ts)
+ * so a renamed companion is never shown as "Kai".
+ */
+export function rivalDialogue(battleIndex: number): TrainerDialogue {
   switch (battleIndex) {
     case 1:
       return {
         intro: [
-          `${playerName}! You took a partner too?`,
-          `I picked ${starterName} — mine beats yours, obviously.`,
-          'Let\u2019s see which of us can actually protect this place.',
+          '{player}! You took a partner too?',
+          'Mine beats yours, obviously.',
+          'I have to be strong enough to find Soren.',
         ],
-        defeat: ['What?! Already?', 'Fine. I\u2019ll train twice as hard before I go looking for my brother.'],
-        after: ['Meet me on Route 2. I\u2019ll be stronger by then.'],
+        defeat: ['What?! Already?', 'Fine. I’ll train twice as hard.'],
+        after: ['Meet me in Whisperwood. Eclipse hides there.'],
       };
     case 2:
       return {
-        intro: ['You again! I caught new teammates.', 'My brother would have loved a fight like this.'],
+        intro: ['You again! I have new teammates.', 'Soren would have loved a fight like this.'],
         defeat: ['No way... I still have a long way to go.'],
-        after: ['Head for Voltspire. Perhaps Eclipse knows where he went.'],
+        after: ['Voltspire next. Soren always liked places with lights.'],
       };
     case 3:
       return {
-        intro: ['Team Eclipse is dangerous. Even for you.', 'Beat me, and I\u2019ll believe you can stop them — and bring him back.'],
-        defeat: ['You really are something.', 'Go on. I\u2019ll hold the rear.'],
-        after: ['Find my brother in Duskmoor. And do not lose to Eclipse.'],
+        intro: ['Eclipse is dangerous. Even for you.', 'Win, and I’ll believe you can reach him.'],
+        defeat: ['You really are something.', 'Go on. I’ll hold the rear.'],
+        after: ['Ashfall next. Don’t lose to Eclipse.'],
       };
     default:
       return {
-        intro: [
-          'This is it — the last one before the Summit.',
-          'Beat me, and I will believe you can reach my brother.',
-        ],
-        defeat: ['...You win. All of it.', 'Go take that summit. I will meet you at the altar.'],
-        after: ['He is at the altar with Voss. I am going to bring him home.'],
+        intro: ['Last battle before the Summit.', 'Win, and I’ll let you tell me all of it.'],
+        defeat: ['...You win. All of it.', 'Go. I’ll meet you at the altar.'],
+        after: ['He’s at the altar with Voss. I’m going to listen.'],
       };
   }
 }

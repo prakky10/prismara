@@ -212,6 +212,18 @@ export function cinderPeak(): MapDef {
           'Solarion can only be challenged at noon.',
         ],
       },
+      {
+        id: 'pilgrim-cinder',
+        name: 'Pilgrim',
+        x: 14,
+        y: 12,
+        facing: 'right',
+        kind: 'npc',
+        sprite: STYLE.elder(0xe8e0f0),
+        showWhenFlag: 'trial-3-cleared',
+        hideWhenFlag: 'aurelia-confessed',
+        dialogue: ['Pilgrim: Go on. The beacons need you more than I do.'],
+      },
     ],
   };
 }

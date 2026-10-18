@@ -142,6 +142,18 @@ export function tidehaven(): MapDef {
         sprite: STYLE.adult(0x3f7fbf),
       },
       {
+        id: 'kai-dock',
+        name: '{rival}',
+        x: 28,
+        y: 20,
+        facing: 'down',
+        kind: 'npc',
+        sprite: STYLE.kid(0x8e5cff),
+        showWhenFlag: 'trial-2-cleared',
+        hideWhenFlag: 'trial-3-cleared',
+        dialogue: ['{rival}: Marin was at sea that night. Ask her. I’ll catch up.'],
+      },
+      {
         id: 'tide-npc',
         name: 'Fishmonger',
         x: 10,

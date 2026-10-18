@@ -55,6 +55,8 @@ class GameContextImpl {
   pendingWildCreature: CreatureInstance | null = null;
   /** Populated by the Battle scene when it finishes. */
   lastOutcome: BattleOutcome | null = null;
+  /** The trainer fought in the battle that just ended, for post-battle story scenes. */
+  lastTrainer: TrainerDef | null = null;
   /** True while an evolution cinematic should play after the battle. */
   pendingEvolutions: string[] = [];
   /** Where the player was standing before entering a battle. */

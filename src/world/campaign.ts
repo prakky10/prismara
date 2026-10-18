@@ -1,6 +1,6 @@
 /**
- * Campaign architecture: the six Trials, side quests, map stories and the
- * finale that ties Prismara's fractured light back together.
+ * Campaign architecture: the six Trials, chapters and side quests. The story
+ * scenes themselves live in ./story (scenes.ts and sceneRunner.ts).
  *
  * Everything here is derived from existing GameState flags, so no save schema
  * change is required and old saves keep working.
@@ -33,7 +33,7 @@ export const TROPHIES: Trophy[] = [
     color: 0x4cd964,
     virtue: 'Growth',
     memory:
-      'Ivy remembers the night the prism cracked and the wood went grey by morning. One green shoot refused to break, and she has grown it ever since.',
+      'Ivy still tends the shoot Edda planted a week before the crack, and she has broken the Summit’s silence: seven keepers were called that night.',
     reward: 'nest-orb',
   },
   {
@@ -46,7 +46,7 @@ export const TROPHIES: Trophy[] = [
     color: 0xffd60a,
     virtue: 'Resilience',
     memory:
-      'Volta watched every turbine stall the night the light fell, then rewired the grid by hand so the city would not go dark. She has never trusted an easy current since.',
+      'Volta’s logs show a timed pulse from the Summit at 11:58, and a stranger’s lantern pin on the breaker that saved her turbines. She has never trusted an easy current since.',
     reward: 'quick-orb',
   },
   {
@@ -59,7 +59,7 @@ export const TROPHIES: Trophy[] = [
     color: 0x2ea8ff,
     virtue: 'Flow',
     memory:
-      'Marin was at sea when the fracture came; the waves dragged a whole shore under while she could only hold her helm. She has been learning to give back what the water took.',
+      'Marin pulled a sobbing boy from the surf, and carried your mother’s journal ashore. She is learning to give back what the sea took, one truth at a time.',
     reward: 'tide-orb',
   },
   {
@@ -72,7 +72,7 @@ export const TROPHIES: Trophy[] = [
     color: 0xff6b35,
     virtue: 'Courage',
     memory:
-      'Blaze’s forge went cold in a single breath, because the beacons’ fire had always shared one heart. He learned that no lone flame can warm an entire land.',
+      'Blaze forged the Summit ring and knew it was too thin. He broke his silence, and learned that no lone flame should be asked to hold six.',
     reward: 'ultra-prism',
   },
   {
@@ -85,7 +85,7 @@ export const TROPHIES: Trophy[] = [
     color: 0x7fffe5,
     virtue: 'Clarity',
     memory:
-      'Opal’s crystals kept the record, and it shows the six elements turning on one another the moment they were asked to share. The fracture was a fight, not a flood.',
+      'Opal’s crystals saw the Concord: six lights forced into one, and a fracture that was a fight, not a flood. She carved it though the Summit asked her not to.',
     reward: 'timer-orb',
   },
   {
@@ -98,7 +98,7 @@ export const TROPHIES: Trophy[] = [
     color: 0x8e5cff,
     virtue: 'Remembrance',
     memory:
-      'Raven writes of the beacon keeper who walked into the dark alone to relight the last flame, and of the cold that Voss mistook for mercy.',
+      'Raven remembers the keeper who walked into the broken prism alone, and the cold Voss built around her out of love, and fear.',
     reward: 'dusk-orb',
   },
 ];
@@ -117,67 +117,76 @@ interface Milestone {
 
 const MILESTONES: Milestone[] = [
   {
-    title: 'Emberleaf Beginnings',
+    title: 'A Dark Lighthouse',
     objective:
-      'Head north along Route 1 into Whisperwood Forest and drive out Team Eclipse, then earn the Verdant Trophy from Ivy in Thistlebrook.',
+      'Take Lumen’s journal and a partner, then follow your friend north through Route 1 into Whisperwood and drive Team Eclipse from the wood.',
     done: (state) => state.getFlag('eclipse-forest-cleared'),
   },
   {
-    title: 'Verdant Trophy',
-    objective: 'Return to Thistlebrook and win the Verdant Trophy from Ivy.',
+    title: 'The Shoot That Stayed Green',
+    objective:
+      'Return to Thistlebrook and win the Verdant Trophy. Ivy saw something the night the prism cracked.',
     done: (state) => state.getSigilCount() >= 1,
   },
   {
-    title: 'Power Struggle',
+    title: 'Drained',
     objective:
-      'Team Eclipse has seized the Voltspire City power plant — head east from Thistlebrook and break their hold.',
+      'Team Eclipse is draining Voltspire’s power plant for something at Duskmoor. Head east and break their hold.',
     done: (state) => state.getFlag('eclipse-plant-cleared'),
   },
   {
-    title: 'Sparks of Hope',
-    objective: 'Challenge Volta at the Voltspire City power plant for the Storm Trophy.',
+    title: 'The 11:58 Pulse',
+    objective:
+      'Challenge Volta for the Storm Trophy. Her logs may show what really triggered the crack.',
     done: (state) => state.getSigilCount() >= 2,
   },
   {
-    title: 'The Turning Tide',
-    objective: 'Sail with Captain Marin in Tidehaven and claim the Tide Trophy.',
+    title: 'What the Tide Returned',
+    objective:
+      'Sail to Tidehaven, read the bottle on the dock, and win the Tide Trophy from Captain Marin.',
     done: (state) => state.getSigilCount() >= 3,
   },
   {
-    title: 'Ashes and Embers',
-    objective: 'Face Blaze in Ashfall Town and earn the Ember Trophy.',
+    title: 'The Ring and the Lantern',
+    objective:
+      'Face Blaze in Ashfall Town for the Ember Trophy. Ask about the forge, and visit the Ancient Stone at Cinder Peak.',
     done: (state) => state.getSigilCount() >= 4,
   },
   {
-    title: 'Facets of Truth',
-    objective: 'Descend into Geode Hollow and win the Facet Trophy from Opal.',
+    title: 'The Record Wall',
+    objective:
+      'Descend into Geode Hollow and win the Facet Trophy from Opal. Her crystals remember the night.',
     done: (state) => state.getSigilCount() >= 5,
   },
   {
-    title: 'The Long Twilight',
-    objective: 'Brave the Duskmoor Ruins for the Twilight Trophy of Raven.',
+    title: 'Lantern Verse',
+    objective:
+      'Brave the Duskmoor Ruins for the Twilight Trophy of Raven. She knows what Voss is holding.',
     done: (state) => state.getSigilCount() >= 6,
   },
   {
     title: 'Eclipse',
-    objective: 'Storm the Duskmoor altar and stop Voss before the ritual completes.',
+    objective:
+      'Face Voss at the Duskmoor altar. Break the ritual without losing what he is protecting.',
     done: (state) => state.getFlag('eclipse-ritual-broken'),
   },
   {
-    title: 'Prism Summit',
-    objective: 'Climb Prism Summit and defeat Champion Aurelia.',
-    done: (state) => state.getFlag('champion-defeated'),
+    title: 'The Last Light',
+    objective: 'Climb Prism Summit, defeat Aurelia, and place the six Trophies in the altar.',
+    // The epilogue starts once Edda steps out of the prism, not at Aurelia's defeat.
+    done: (state) => state.getFlag('edda-returned'),
   },
 ];
 
 const EPILOGUE: Chapter = {
   number: MILESTONES.length + 1,
-  title: 'The Last Light',
-  objective: 'The beacons burn again across Prismara — walk the world you saved.',
+  title: 'Still Tending It',
+  objective:
+    'The beacons burn again. Walk the isles with your mother, and find the legends the light woke.',
 };
 
 export function getChapter(state: GameState): Chapter {
-  if (state.getFlag('champion-defeated')) return { ...EPILOGUE };
+  if (state.getFlag('edda-returned')) return { ...EPILOGUE };
   for (let i = 0; i < MILESTONES.length; i++) {
     if (!MILESTONES[i].done(state)) {
       return { number: i + 1, title: MILESTONES[i].title, objective: MILESTONES[i].objective };
@@ -328,66 +337,4 @@ export function claimQuest(state: GameState, id: string): string[] {
   state.setFlag(`quest-${id}-claimed`);
   def.grant(state);
   return [`Quest complete: ${def.quest.title}`, `You received ${def.quest.rewardLabel}.`];
-}
-
-const STORIES: Record<string, string[]> = {
-  'emberleaf-town': [
-    'Lumen: The prism cracked the night your mother vanished, keeper. Prismara has dimmed ever since.',
-    'Kai: My brother walked off with Team Eclipse the same week. He says the dark keeps him safe.',
-    'Lumen: Her damaged journal survived the fracture. Six beacon-keepers shared one light, and six Trophies still remember how to relight it.',
-  ],
-  'whisperwood-forest': [
-    'Kai: Eclipse grunts hold this wood now. My brother marched in beside them.',
-    'A half-buried keeper’s note: The beacons wait for someone who unites them, never for someone who freezes them.',
-    'The ink looks like your mother’s hand. You fold the scrap into her journal.',
-  ],
-  'voltspire-city': [
-    'Volta: The turbines stuttered when the prism broke, and Eclipse is draining what is left.',
-    'Eclipse radio, thin with static: Voss tells his grunts to freeze the twilight. “Nothing here will ever break again.”',
-    'Your mother’s journal, smudged: Six Trophies, one for each virtue. Together they remember the beacon.',
-  ],
-  tidehaven: [
-    'Marin: The sea remembers the fracture. It swallowed a whole shore that night and kept the names.',
-    'Kai: My brother swears Eclipse will spare us. I do not believe him any more.',
-    'Your mother’s journal: Flow, not force. Water gave back what it took, and so must we.',
-  ],
-  'ashfall-town': [
-    'Blaze: The forge went cold when the beacons died. We keep the embers lit by hand down here.',
-    'Eclipse radio, through the smoke: Voss calls light a wound. “Courage only ever hurts the ones we love.”',
-    'Your mother’s journal: Courage chooses repair over ruin, every time. She wrote that twice.',
-  ],
-  'geode-hollow': [
-    'Opal: The crystals recorded it. The fracture was no accident — the elements turned on each other.',
-    'Your mother’s journal, one page torn: Cooperation, not force, restores the beacons.',
-    'Kai: I am going to find my brother in Duskmoor. Promise me you will finish what she started.',
-  ],
-  'duskmoor-ruins': [
-    'Voss: I was a keeper too. I froze the twilight so nothing could break again.',
-    'Kai: My brother is here, holding the altar. Let me reach him, please.',
-    'Your mother’s journal, in her hand: Remembrance is not the same as living in the dark.',
-  ],
-  'prism-summit': [
-    'Aurelia: You united six virtues. Now show me a heart that will not shatter under the last light.',
-    'Voss: I see it now. The twilight was never the danger — isolation was.',
-    'Lumen: Her journal stops mid-sentence — “still tending it, still waiting.” Climb, keeper.',
-  ],
-};
-
-export function storyForMap(state: GameState, mapId: string): string[] | null {
-  const pages = STORIES[mapId];
-  if (!pages) return null;
-  const flag = `story-${mapId}-seen`;
-  if (state.getFlag(flag)) return null;
-  state.setFlag(flag);
-  return pages;
-}
-
-export function finaleLines(state: GameState): string[] {
-  if (!state.getFlag('champion-defeated')) return [];
-  return [
-    'Above Prism Summit the last beacon kindles, and your mother is there, tending its flame at last.',
-    'Kai: My brother came home. He set down the altar and walked into the light beside me.',
-    'Voss: Let me mend what I froze. A broken world is better repaired together than preserved alone.',
-    'Aurelia: You did not merely defeat me. You united what was scattered. Prismara is yours to keep bright.',
-  ];
 }

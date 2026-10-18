@@ -166,6 +166,18 @@ export function geodeHollow(): MapDef {
         sprite: STYLE.adult(0x9aa4b0),
         dialogue: ['GEODE HOLLOW', 'Crystal Trophy: the Trial of Opal.'],
       },
+      {
+        id: 'lumen-geode',
+        name: 'Prof. Lumen',
+        x: 8,
+        y: 13,
+        facing: 'down',
+        kind: 'npc',
+        sprite: STYLE.elder(0xf5f0ff),
+        showWhenFlag: 'trial-5-cleared',
+        hideWhenFlag: 'edda-returned',
+        dialogue: ['Prof. Lumen: Go, {player}. Finish it. And I am sorry.'],
+      },
     ],
   };
 }

@@ -11,6 +11,7 @@ import { ITEMS, type ItemId } from '../data/items';
 import { getSpecies, type CreatureId } from '../data/creatures';
 import { newClock, type ClockState } from './Time';
 import { random } from './SeededRNG';
+import { migrateLegacyStoryFlags } from '../world/story/journal';
 
 export const SAVE_VERSION = 1;
 
@@ -346,6 +347,7 @@ export class GameState {
     state.hallOfFame = data.hallOfFame ?? false;
     state.createdAt = data.createdAt ?? Date.now();
     state.updatedAt = data.updatedAt ?? Date.now();
+    migrateLegacyStoryFlags(state);
     return state;
   }
 }

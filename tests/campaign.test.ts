@@ -7,8 +7,6 @@ import {
   trialLockedReason,
   questStatus,
   claimQuest,
-  storyForMap,
-  finaleLines,
 } from '../src/world/campaign';
 
 describe('trophies', () => {
@@ -33,11 +31,11 @@ describe('trophies', () => {
 });
 
 describe('chapters', () => {
-  it('starts at the first chapter and ends after the champion', () => {
+  it('starts at the first chapter and ends after Edda returns', () => {
     const state = new GameState();
     const early = getChapter(state);
     expect(early.number).toBe(1);
-    state.setFlag('champion-defeated');
+    state.setFlag('edda-returned');
     const late = getChapter(state);
     expect(late.number).toBeGreaterThan(early.number);
   });
@@ -103,20 +101,23 @@ describe('side quests', () => {
 });
 
 describe('story and finale', () => {
-  it('shows each map story once', () => {
+  it('opens the epilogue only once Edda has stepped out of the prism', () => {
     const state = new GameState();
-    const pages = storyForMap(state, 'emberleaf-town');
-    expect(pages).not.toBeNull();
-    expect(pages!.length).toBe(3);
-    expect(state.getFlag('story-emberleaf-town-seen')).toBe(true);
-    expect(storyForMap(state, 'emberleaf-town')).toBeNull();
-    expect(storyForMap(state, 'nowhere')).toBeNull();
+    state.setFlag('eclipse-forest-cleared');
+    state.setFlag('eclipse-plant-cleared');
+    state.setFlag('eclipse-ritual-broken');
+    state.setFlag('champion-defeated');
+    state.sigils.push(...TROPHIES.map((t) => t.id));
+    expect(getChapter(state).number).toBe(10);
+    expect(getChapter(state).title).toBe('The Last Light');
+    state.setFlag('edda-returned');
+    expect(getChapter(state)).toMatchObject({ number: 11, title: 'Still Tending It' });
   });
 
-  it('gates the finale on the champion flag', () => {
-    const fresh = new GameState();
-    expect(finaleLines(fresh)).toEqual([]);
-    fresh.setFlag('champion-defeated');
-    expect(finaleLines(fresh).length).toBeGreaterThan(0);
+  it('uses the rewritten chapter titles and Trophy memories', () => {
+    const state = new GameState();
+    expect(getChapter(state).title).toBe('A Dark Lighthouse');
+    expect(TROPHIES[0].memory).toContain('Edda planted');
+    expect(TROPHIES[1].memory).toContain('11:58');
   });
 });

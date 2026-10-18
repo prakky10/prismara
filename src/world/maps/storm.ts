@@ -159,6 +159,18 @@ export function voltspireCity(): MapDef {
         sprite: STYLE.adult(0x4d2aa8),
       },
       {
+        id: 'soren-plant',
+        name: 'Soren',
+        x: 14,
+        y: 8,
+        facing: 'right',
+        kind: 'npc',
+        sprite: STYLE.kid(0x4d2aa8),
+        showWhenFlag: 'eclipse-plant-cleared',
+        hideWhenFlag: 'trial-2-cleared',
+        dialogue: ['Soren: Take the plant back. Volta has been holding it with one hand.'],
+      },
+      {
         id: 'volt-npc-1',
         name: 'Voltspire Tech',
         x: 10,
