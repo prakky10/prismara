@@ -76,6 +76,56 @@ export function shingleTexture(): THREE.DataTexture {
   });
 }
 
+/** Greyscale striped wallpaper with small diamond motifs; 1 repeat = 2 world units. */
+export function wallpaperTexture(): THREE.DataTexture {
+  const size = 128;
+  return make(size, (x, y) => {
+    const px = x % 16;
+    let v = px < 8 ? 0.98 : 0.89;
+    const dy = y % 32;
+    if (px >= 6 && px <= 9 && Math.abs(dy - 16) + Math.abs(px - 7.5) < 3.2) v *= 0.82;
+    if (px === 0 || px === 8) v *= 0.94;
+    v += (fbm(x * 0.2, y * 0.2, 17, 2) - 0.5) * 0.06;
+    return [v, v, v, 1];
+  });
+}
+
+/** Greyscale stone bricks (4 x 8 per repeat) with dark mortar lines. */
+export function brickTexture(): THREE.DataTexture {
+  const size = 128;
+  return make(size, (x, y) => {
+    const row = Math.floor(y / 16);
+    const shifted = (x + (row % 2) * 16) % size;
+    const col = Math.floor(shifted / 32);
+    let v = 0.82 + hash2(row, col, 21) * 0.2 + (fbm(x * 0.25, y * 0.25, 5, 2) - 0.5) * 0.12;
+    if (y % 16 < 1.5 || shifted % 32 < 1.5) v *= 0.58;
+    return [v, v, v, 1];
+  });
+}
+
+/** Soft fading band used for window light on the floor: bright at v=0, gone by v=1. */
+export function shaftTexture(): THREE.DataTexture {
+  const size = 32;
+  return make(size, (x, y) => {
+    const u = x / (size - 1);
+    const v = y / (size - 1);
+    const across = Math.pow(Math.max(0, 1 - Math.abs(u - 0.5) * 2), 0.6);
+    const along = Math.pow(Math.max(0, 1 - v), 1.3);
+    const val = across * along;
+    return [val, val, val, 1];
+  });
+}
+
+/** Radial falloff used for floor glow halos (blend additively). */
+export function glowTexture(): THREE.DataTexture {
+  const size = 32;
+  return make(size, (x, y) => {
+    const d = Math.hypot(x / (size - 1) - 0.5, y / (size - 1) - 0.5) * 2;
+    const val = Math.pow(Math.max(0, 1 - d), 2);
+    return [val, val, val, 1];
+  });
+}
+
 /** Tileable ripple pattern: bright thin lines on a mid-blue base (also used as emissive map). */
 export function rippleTexture(): THREE.DataTexture {
   const size = 128;
