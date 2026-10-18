@@ -33,7 +33,15 @@ import { buildRivalParty, getTrainer, rivalDialogue, type TrainerDef } from '../
 import { isFainted } from '../battle/Creature';
 import { World3D, type WorldActor } from '../render/three/World3D';
 import { ThreeSurface } from '../render/three/ThreeSurface';
-import { finaleLines, storyForMap, TROPHIES, trialLockedReason } from '../world/campaign';
+import { TROPHIES, trialLockedReason } from '../world/campaign';
+import { groupBySpeaker, toDialogue, type DialogueLine } from '../world/story/dialogue';
+import {
+  runScenes,
+  scenesAfterBattle,
+  scenesForMapEntry,
+  scenesForNpcTalk,
+} from '../world/story/sceneRunner';
+import type { StoryScene } from '../world/story/scenes';
 import {
   altarEventAt,
   canWalkTo,
@@ -145,14 +153,14 @@ export class OverworldScene extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.RESUME, this.onWakeEvent);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdownEvent);
 
-    // Map stories play once, after the area banner; evolutions, trophies, the
-    // battle outcome and the finale resume once it finishes.
+    // Map-entry scenes play once, after the area banner; evolutions, trophies and
+    // the battle outcome resume once they finish.
     this.running = true;
     this.time.delayedCall(760, () => {
       this.running = false;
-      const pages = storyForMap(Game.state, this.map.id);
-      if (pages && !this.dialogueActive) {
-        this.say(pages, () => this.resumeAfterStory());
+      const scenes = scenesForMapEntry(Game.state, this.map.id);
+      if (scenes.length > 0 && !this.dialogueActive) {
+        this.playScenes(scenes, () => this.resumeAfterStory());
       } else {
         this.resumeAfterStory();
       }
@@ -482,6 +490,7 @@ export class OverworldScene extends Phaser.Scene {
   private startWildBattle(speciesId: string, level: number, shiny: boolean): void {
     Audio.playSfx('encounter');
     this.running = true;
+    Game.lastTrainer = null;
     Game.pendingBattle = { kind: 'wild', speciesId, level, shiny };
     // Stash the built creature so the battle uses the exact same instance.
     Game.pendingWildCreature = Game.createWild(speciesId, level, shiny);
@@ -559,8 +568,15 @@ export class OverworldScene extends Phaser.Scene {
     Game.pendingBattle = { kind: 'trainer', trainer, trainerName: trainer.name };
     Game.returnPosition = { ...Game.state.position };
 
-    this.say(trainer.dialogue.intro, () => {
-      this.launchBattle();
+    // Pre-battle scenes (e.g. Voss's speech) play before the challenge line.
+    this.playScenes(scenesForNpcTalk(Game.state, this.map.id, def.id), () => {
+      this.say(
+        trainer.dialogue.intro,
+        () => {
+          this.launchBattle();
+        },
+        trainer.name,
+      );
     });
   }
 
@@ -568,7 +584,7 @@ export class OverworldScene extends Phaser.Scene {
     const starter = Game.state.starterChosen;
     if (!starter) return;
     const party = buildRivalParty(index, starter);
-    const dialogue = rivalDialogue(index, Game.state.playerName, starter);
+    const dialogue = rivalDialogue(index);
     const trainer: TrainerDef = {
       id: `rival-${index}`,
       name: Game.state.rivalName,
@@ -584,10 +600,13 @@ export class OverworldScene extends Phaser.Scene {
     Game.pendingBattle = { kind: 'trainer', trainer, trainerName: trainer.name, isRival: true };
     Game.returnPosition = { ...Game.state.position };
 
-    this.say(dialogue.intro, () => this.launchBattle());
+    this.say(dialogue.intro, () => this.launchBattle(), trainer.name);
   }
 
   private launchBattle(): void {
+    // Remember who we fight so the outcome can play their lines and story scenes.
+    const request = Game.pendingBattle;
+    Game.lastTrainer = request?.kind === 'trainer' ? request.trainer : null;
     this.scene.pause();
     this.scene.launch(SCENES.battle);
   }
@@ -631,6 +650,19 @@ export class OverworldScene extends Phaser.Scene {
       def.x < this.playerTile.x ? 'right' : def.x > this.playerTile.x ? 'left' : def.y < this.playerTile.y ? 'down' : 'up';
     actor.sprite.setFrame(frameFor(dir, 0));
 
+    // Story scenes first. Trainers continue into their normal challenge flow
+    // afterwards; everyone else lets the scene stand in for the usual chatter.
+    const scenes = scenesForNpcTalk(Game.state, this.map.id, def.id);
+    if (scenes.length > 0) {
+      const challenger = def.kind === 'trainer' || def.kind === 'trial';
+      this.playScenes(scenes, challenger ? () => this.talkToNpc(actor) : undefined);
+      return;
+    }
+    this.talkToNpc(actor);
+  }
+
+  private talkToNpc(actor: Actor): void {
+    const def = actor.def;
     switch (def.kind) {
       case 'heal':
         this.say(def.dialogue ?? ['Welcome!'], () => this.healParty());
@@ -645,7 +677,7 @@ export class OverworldScene extends Phaser.Scene {
       case 'trial': {
         if (this.isTrainerDefeated(def)) {
           const trainer = def.trainerId ? getTrainer(def.trainerId) : undefined;
-          this.say(trainer?.dialogue.after ?? ['Good battle!']);
+          this.say(trainer?.dialogue.after ?? ['Good battle!'], undefined, trainer?.name);
           return;
         }
         const trainer = def.trainerId ? getTrainer(def.trainerId) : undefined;
@@ -664,16 +696,19 @@ export class OverworldScene extends Phaser.Scene {
         this.running = true;
         Game.pendingBattle = { kind: 'trainer', trainer, trainerName: trainer.name };
         Game.returnPosition = { ...Game.state.position };
-        this.say(trainer.dialogue.intro, () => this.launchBattle());
+        this.say(trainer.dialogue.intro, () => this.launchBattle(), trainer.name);
         break;
       }
       case 'sign':
         this.say(def.dialogue ?? ['...']);
         break;
       default: {
-        const lines = def.chatter ?? def.dialogue ?? ['...'];
-        const line = lines[random.int(0, lines.length - 1)] ?? '...';
-        this.say([line]);
+        if (def.chatter && def.chatter.length > 0) {
+          const line = def.chatter[random.int(0, def.chatter.length - 1)] ?? '...';
+          this.say([line], undefined, def.name);
+        } else {
+          this.say(def.dialogue ?? ['...'], undefined, def.name);
+        }
         break;
       }
     }
@@ -744,13 +779,53 @@ export class OverworldScene extends Phaser.Scene {
 
   /* ------------------------------------------------------------ dialogue -- */
 
-  private say(lines: string[], onDone?: () => void): void {
+  /**
+   * Show lines in the text box. Plain strings go through the shared formatter, so
+   * `{player}` / `{rival}` become the current names and a "Speaker: text" prefix
+   * becomes the name tag; `defaultSpeaker` tags lines that have none.
+   */
+  private say(
+    lines: ReadonlyArray<string | DialogueLine>,
+    onDone?: () => void,
+    defaultSpeaker?: string,
+  ): void {
     if (this.dialogueActive) return;
-    this.dialogueActive = true;
-    this.textbox.show(lines, () => {
-      this.dialogueActive = false;
+    const resolved: DialogueLine[] = lines.flatMap((line) =>
+      typeof line === 'string' ? toDialogue([line], Game.state, defaultSpeaker) : [line],
+    );
+    const groups = groupBySpeaker(resolved);
+    if (groups.length === 0) {
       onDone?.();
-    });
+      return;
+    }
+    this.dialogueActive = true;
+    const play = (index: number): void => {
+      const group = groups[index];
+      this.textbox.show(
+        group.pages,
+        () => {
+          if (index + 1 < groups.length) {
+            play(index + 1);
+            return;
+          }
+          this.dialogueActive = false;
+          onDone?.();
+        },
+        group.speaker,
+      );
+    };
+    play(0);
+  }
+
+  /** Apply story scenes (flags first, then dialogue) and show their lines. */
+  private playScenes(scenes: readonly StoryScene[], onDone?: () => void): void {
+    if (scenes.length === 0) {
+      onDone?.();
+      return;
+    }
+    const lines = runScenes(Game.state, scenes);
+    autosave(Game.state);
+    this.say(lines, onDone);
   }
 
   /* ------------------------------------------------------------- battle end -- */
@@ -828,44 +903,45 @@ export class OverworldScene extends Phaser.Scene {
     next(0);
   }
 
-  /** Handle the last battle's outcome, if any, then schedule the finale. */
+  /**
+   * Handle the last battle's outcome, if any. After a trainer win that means the
+   * trainer's defeat lines, then any story scenes that trainer unlocks; after a
+   * loss, their victory lines and the white-out. The finale itself now plays as
+   * scenes (the Aurelia confession, then the Prism Altar sockets).
+   */
   private resolveBattleOutcome(): void {
     const outcome = Game.lastOutcome;
     Game.lastOutcome = null;
+    const trainer = Game.lastTrainer;
+    Game.lastTrainer = null;
 
-    if (!outcome) {
-      this.scheduleFinale();
-      return;
-    }
+    if (!outcome) return;
 
     if (outcome.reason === 'faint' && outcome.winner === 'enemy') {
       // A white-out: return to the last Healing Center, fully healed.
-      this.say(
-        ['You have no creatures left...', 'You scrambled back to safety.'],
-        () => this.whiteOut(),
-      );
+      const whiteOut = (): void =>
+        this.say(['You have no creatures left...', 'You scrambled back to safety.'], () =>
+          this.whiteOut(),
+        );
+      if (trainer?.dialogue.victory) this.say(trainer.dialogue.victory, whiteOut, trainer.name);
+      else whiteOut();
+      return;
+    }
+
+    if (trainer && outcome.winner === 'player') {
+      const scenes = scenesAfterBattle(Game.state, trainer.id);
+      const story = (): void => this.playScenes(scenes, () => autosave(Game.state));
+      if (trainer.dialogue.defeat.length > 0) {
+        this.say(trainer.dialogue.defeat, story, trainer.name);
+      } else {
+        story();
+      }
       return;
     }
 
     autosave(Game.state);
-    this.scheduleFinale();
   }
 
-  /**
-   * The finale plays once, after the Champion falls: the finale lines, then the
-   * single Master Prism reward. story-finale-seen guards it and is set before the
-   * dialogue so it cannot replay.
-   */
-  private scheduleFinale(): void {
-    if (!Game.state.getFlag('champion-defeated')) return;
-    if (Game.state.getFlag('story-finale-seen')) return;
-    Game.state.setFlag('story-finale-seen');
-    this.say(finaleLines(Game.state), () => {
-      Game.state.addItem('master-prism', 1);
-      autosave(Game.state);
-      this.say(['The last beacon burns again: a Master Prism is yours.']);
-    });
-  }
 
   private whiteOut(): void {
     Game.state.healParty();

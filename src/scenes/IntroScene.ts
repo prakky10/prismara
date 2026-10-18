@@ -22,11 +22,12 @@ import { autosave } from '../core/SaveManager';
 type Stage = 'story' | 'naming' | 'starter' | 'confirm' | 'done';
 
 const STORY: string[] = [
-  'Your mother kept the last lighthouse on the isles — until the night the sky prism fractured, and she vanished with its light.',
-  'A wanderer named Lumen found her waterlogged journal. Its pages remember beacons that no map still marks.',
-  'Kai has not slept since his brother answered the call of the Eclipse. He means to bring him home — or follow him into the dark.',
-  'Far in the frozen north, Voss bends the twilight to his will. He would still the whole world in ice, if stillness could undo one disaster.',
-  'Six Keeper Trophies wake six sleeping beacons. At the last beacon, the journal insists, you will find her.',
+  // The naming screen comes after these pages, so the companion is not named here.
+  'Every night for a hundred years, the lighthouse above Emberleaf turned the sky prism’s light into six beacons. Your mother kept it.',
+  'Then, one midnight last winter, the prism cracked. The beacons went dark, the sea rose, and your mother was gone. Only her journal washed ashore.',
+  'Professor Lumen of the Emberleaf Lab has kept it safe. Its pages name six Keepers, six Trophies, and a seventh light he cannot read.',
+  'Your oldest friend’s brother, Soren, left that week to join Team Eclipse. Their leader, Voss, once a keeper himself, waits at the Duskmoor altar, holding the whole world in twilight.',
+  'Six Trophies can wake six beacons. Follow her journal, light them one by one, and the last light may bring her home.',
 ];
 
 const CARD_X = [260, 480, 700];

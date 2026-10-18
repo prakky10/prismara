@@ -95,6 +95,18 @@ export function whisperwood(): MapDef {
         sprite: STYLE.adult(0x4d2aa8),
       },
       {
+        id: 'soren-forest',
+        name: 'Soren',
+        x: 16,
+        y: 4,
+        facing: 'down',
+        kind: 'npc',
+        sprite: STYLE.kid(0x4d2aa8),
+        showWhenFlag: 'eclipse-forest-cleared',
+        hideWhenFlag: 'soren-sighted',
+        dialogue: ['Soren: You should not be here.'],
+      },
+      {
         id: 'forest-npc',
         name: 'Naturalist',
         x: 6,
