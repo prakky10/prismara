@@ -38,6 +38,7 @@ import { groupBySpeaker, toDialogue, type DialogueLine } from '../world/story/di
 import {
   runScenes,
   scenesAfterBattle,
+  scenesForDefeatedTrainers,
   scenesForMapEntry,
   scenesForNpcTalk,
 } from '../world/story/sceneRunner';
@@ -65,7 +66,17 @@ interface Actor {
   sprite: Phaser.GameObjects.Sprite;
   defeated: boolean;
   hidden: boolean;
+  /** Current tile; wandering villagers drift off their map position. */
+  tile: { x: number; y: number };
+  facing: Facing;
+  /** Scene time (ms) of the next idle step or turn, for wanderers. */
+  nextWander: number;
+  walking: boolean;
 }
+
+/** How far a wandering villager strays from where the map places them. */
+const WANDER_RADIUS = 2;
+const WANDER_STEP_MS = 420;
 
 export class OverworldScene extends Phaser.Scene {
   private controls!: InputManager;
@@ -238,17 +249,63 @@ export class OverworldScene extends Phaser.Scene {
         sprite,
         defeated: this.isTrainerDefeated(def),
         hidden: false,
+        tile: { x: def.x, y: def.y },
+        facing: def.facing,
+        nextWander: this.time.now + 1500 + Math.random() * 3000,
+        walking: false,
       };
       this.actors.push(actor);
+    }
+  }
 
-      // Idle bob so the world feels alive.
+  /** Plain villagers stroll and look around; trainers, shopkeepers and signs hold still. */
+  private canWander(actor: Actor): boolean {
+    return actor.def.kind === 'npc' && !actor.def.trainerId && !actor.hidden;
+  }
+
+  private updateWanderers(time: number): void {
+    for (const actor of this.actors) {
+      if (!this.canWander(actor) || actor.walking || time < actor.nextWander) continue;
+      actor.nextWander = time + 1800 + Math.random() * 3500;
+
+      const dirs: Array<[Facing, number, number]> = [
+        ['up', 0, -1],
+        ['down', 0, 1],
+        ['left', -1, 0],
+        ['right', 1, 0],
+      ];
+      const [facing, dx, dy] = dirs[Math.floor(Math.random() * dirs.length)]!;
+      actor.facing = facing;
+      // Sometimes just glance around.
+      if (Math.random() < 0.35) continue;
+
+      const tx = actor.tile.x + dx;
+      const ty = actor.tile.y + dy;
+      if (Math.abs(tx - actor.def.x) > WANDER_RADIUS || Math.abs(ty - actor.def.y) > WANDER_RADIUS) continue;
+      // Keep clear of the player's tile and wherever they might be stepping.
+      if (Math.abs(tx - this.playerTile.x) + Math.abs(ty - this.playerTile.y) <= 1) continue;
+      if (this.isWarpTile(tx, ty)) continue;
+      const free = canWalkTo(
+        this.map,
+        this.grid,
+        tx,
+        ty,
+        () => false,
+        (ox, oy) => this.actors.some((a) => !a.hidden && a.tile.x === ox && a.tile.y === oy),
+      );
+      if (!free) continue;
+
+      actor.tile = { x: tx, y: ty };
+      actor.walking = true;
       this.tweens.add({
-        targets: sprite,
-        y: sprite.y - 1.5,
-        duration: 1700 + random.int(0, 400),
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
+        targets: actor.sprite,
+        x: tx * TILE + TILE / 2,
+        y: ty * TILE + TILE,
+        duration: WANDER_STEP_MS,
+        ease: 'Linear',
+        onComplete: () => {
+          actor.walking = false;
+        },
       });
     }
   }
@@ -298,7 +355,7 @@ export class OverworldScene extends Phaser.Scene {
       id: actor.def.id,
       x: actor.sprite.x / TILE - 0.5,
       y: actor.sprite.y / TILE - 1,
-      facing: actor.def.facing,
+      facing: actor.facing,
       hidden: actor.hidden,
       style: actor.def.sprite,
       kind: actor.def.kind,
@@ -347,7 +404,7 @@ export class OverworldScene extends Phaser.Scene {
       x,
       y,
       (ability) => this.hasFieldAbility(ability),
-      (tx, ty) => this.actors.some((actor) => !actor.hidden && actor.def.x === tx && actor.def.y === ty),
+      (tx, ty) => this.actors.some((actor) => !actor.hidden && actor.tile.x === tx && actor.tile.y === ty),
     );
   }
 
@@ -429,6 +486,12 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /* --------------------------------------------------------------- warps -- */
+
+  private isWarpTile(x: number, y: number): boolean {
+    return this.map.warps.some(
+      (warp) => x >= warp.x && x < warp.x + (warp.width ?? 1) && y >= warp.y && y < warp.y + (warp.height ?? 1),
+    );
+  }
 
   private checkWarp(): boolean {
     for (const warp of this.map.warps) {
@@ -618,7 +681,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const facingTile = this.facingTile();
     const actor = this.actors.find(
-      (a) => !a.hidden && a.def.x === facingTile.x && a.def.y === facingTile.y,
+      (a) => !a.hidden && a.tile.x === facingTile.x && a.tile.y === facingTile.y,
     );
     if (actor) {
       this.talkTo(actor);
@@ -646,9 +709,12 @@ export class OverworldScene extends Phaser.Scene {
     const def = actor.def;
 
     // Face the player.
+    const { x, y } = actor.tile;
     const dir: Direction =
-      def.x < this.playerTile.x ? 'right' : def.x > this.playerTile.x ? 'left' : def.y < this.playerTile.y ? 'down' : 'up';
+      x < this.playerTile.x ? 'right' : x > this.playerTile.x ? 'left' : y < this.playerTile.y ? 'down' : 'up';
     actor.sprite.setFrame(frameFor(dir, 0));
+    actor.facing = dir as Facing;
+    actor.nextWander = this.time.now + 4000;
 
     // Story scenes first. Trainers continue into their normal challenge flow
     // afterwards; everyone else lets the scene stand in for the usual chatter.
@@ -915,7 +981,12 @@ export class OverworldScene extends Phaser.Scene {
     const trainer = Game.lastTrainer;
     Game.lastTrainer = null;
 
-    if (!outcome) return;
+    if (!outcome) {
+      // A reload drops the transient outcome but keeps the durable defeat
+      // marker, so replay any after-battle scenes the trainer unlocked.
+      this.playScenes(scenesForDefeatedTrainers(Game.state));
+      return;
+    }
 
     if (outcome.reason === 'faint' && outcome.winner === 'enemy') {
       // A white-out: return to the last Healing Center, fully healed.
@@ -972,6 +1043,8 @@ export class OverworldScene extends Phaser.Scene {
     Game.state.playtimeMinutes += delta / 60000;
     this.hud.applyDayNightGrade();
     if (Math.floor(time / 1000) % 5 === 0) this.updateHud();
+
+    if (!this.dialogueActive) this.updateWanderers(this.time.now);
 
     if (this.dialogueActive) {
       if (this.controls.justPressed('confirm') || this.controls.justPressed('cancel')) {

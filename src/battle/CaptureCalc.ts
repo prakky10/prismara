@@ -1,7 +1,7 @@
 /**
  * Capture.
  *
- *   a = catchRate * (3*maxHP - 2*HP) / (3*maxHP) * orbBonus * statusBonus
+ *   a = catchRate * (3*maxHP - 2*HP) / (3*maxHP) * orbBonus * statusBonus * CATCH_EASE
  *
  * A Master Prism always succeeds. Otherwise the game performs three shake
  * checks; the number that pass is the number of times the orb wobbles before
@@ -107,6 +107,9 @@ export function orbBonus(
   return bonus;
 }
 
+/** Global easing on every catch so captures feel fair without trivialising legendaries. */
+export const CATCH_EASE = 1.5;
+
 /** The catch value `a` before the shake checks. */
 export function catchValue(
   target: CreatureInstance,
@@ -125,7 +128,7 @@ export function catchValue(
   });
   const status = statusCatchBonus(target.status);
 
-  const value = species.catchRate * ((3 * max - 2 * hp) / (3 * max)) * bonus * status;
+  const value = species.catchRate * ((3 * max - 2 * hp) / (3 * max)) * bonus * status * CATCH_EASE;
   return { value, bonus, statusBonus: status };
 }
 
