@@ -125,7 +125,7 @@ const MILESTONES: Milestone[] = [
   {
     title: 'The Shoot That Stayed Green',
     objective:
-      'Return to Thistlebrook and win the Verdant Trophy. Ivy saw something the night the prism cracked.',
+      'Return to Thistlebrook and win the Verdant Trophy. Ivy knows why a green shoot grew before the crack.',
     done: (state) => state.getSigilCount() >= 1,
   },
   {

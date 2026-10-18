@@ -355,8 +355,8 @@ export const SCENES: StoryScene[] = [
     lines: [
       `Opal: Clarity is not always kind. Come. The Record Wall is yours to see.`,
       `Opal presses a gem. The crystal fills with a silent memory of that night.`,
-      `Seven figures stand around the prism. Light climbs a brass ring.`,
-      `A tall woman in gold raises a lamp. It is Aurelia, the Champion.`,
+      `Seven keepers stand around the prism. Light climbs a brass ring.`,
+      `A tall woman in gold stands apart and raises a lamp. It is Aurelia, the Champion.`,
       `Opal: She signalled the lighthouse. A boy pulled the shutter. Six lights poured into one.`,
       `Opal: That was the Concord. A rite to bind six lights into one flame.`,
       `The elements flare, then turn on each other. The prism cracks like ice.`,

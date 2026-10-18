@@ -138,7 +138,7 @@ export const TRAINERS: Record<string, TrainerDef> = {
       { speciesId: 'duskmaw', level: 12 },
     ],
     dialogue: {
-      intro: ['Voss says the twilight is a kindness.', 'Orders: slow Edda’s child. No harm done.'],
+      intro: ['Voss says the twilight is a kindness.', 'We were told to slow Edda’s child. No harm done.'],
       defeat: ['You fight like the fracture never scared you.', 'Voss said nobody would fight back.'],
       after: ['The wood is clear. Ivy waits in Thistlebrook to test you.'],
     },
@@ -187,7 +187,7 @@ export const TRAINERS: Record<string, TrainerDef> = {
       { speciesId: 'bloomwisp', level: 14 },
     ],
     dialogue: {
-      intro: ['Welcome to Thistlebrook, little sprout.', 'My trial is simple: outgrow the fracture.'],
+      intro: ['Welcome to Thistlebrook, little sprout.', 'My trial is simple. Outgrow the fracture.'],
       defeat: ['You bloomed beautifully.', 'Take the Verdant Trophy — its growth teaches Cut.'],
       after: ['Cut the little trees, then head east to Voltspire.'],
     },
