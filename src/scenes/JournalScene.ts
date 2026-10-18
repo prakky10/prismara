@@ -341,7 +341,11 @@ export class JournalScene extends Phaser.Scene {
         'Location: ' + quest.location,
         'Reward: ' + quest.rewardLabel,
         'Status: ' +
-          (status === 'ready' ? 'Ready to claim' : status === 'claimed' ? 'Claimed' : 'In progress'),
+          (status === 'ready'
+            ? 'Ready to claim'
+            : status === 'claimed'
+              ? 'Claimed'
+              : 'In progress'),
       ].join('\n'),
     );
 
@@ -468,19 +472,403 @@ export class JournalScene extends Phaser.Scene {
     cy: number,
     color: number,
     earned: boolean,
+    element = 'grass',
   ): void {
-    const tint = earned ? color : 0x36445f;
-    const alpha = earned ? 1 : 0.7;
+    type Pt = { x: number; y: number };
+    const lerp = (a: number, b: number, t: number): number => {
+      const ar = (a >> 16) & 255;
+      const ag = (a >> 8) & 255;
+      const ab = a & 255;
+      const r = Math.round(ar + (((b >> 16) & 255) - ar) * t);
+      const gr = Math.round(ag + (((b >> 8) & 255) - ag) * t);
+      const bl = Math.round(ab + ((b & 255) - ab) * t);
+      return (r << 16) | (gr << 8) | bl;
+    };
+    // Earned trophies shine in brass and their element colour; locked ones sit
+    // in cold slate.
+    const metalL = earned ? 0xf3dc8a : 0x5d6c8a;
+    const metalM = earned ? 0xc9a227 : 0x46547a;
+    const metalD = earned ? 0x7a6420 : 0x2d3752;
+    const body = earned ? color : 0x3a4866;
+    const bodyL = earned ? lerp(color, 0xffffff, 0.45) : 0x4a5877;
+    const bodyD = earned ? lerp(color, 0x000000, 0.35) : 0x2c3750;
+    const ex = cx;
+    const ey = cy - 8;
+
+    const poly = (pts: Pt[], fill: number, alpha = 1): void => {
+      g.fillStyle(fill, alpha);
+      g.fillPoints(pts as Phaser.Types.Math.Vector2Like[], true, true);
+    };
+    const outline = (pts: Pt[], width = 1.5, c = metalD): void => {
+      g.lineStyle(width, c, earned ? 0.95 : 0.8);
+      g.strokePoints(pts as Phaser.Types.Math.Vector2Like[], true, true);
+    };
+    const shift = (pts: Pt[], dx: number, dy: number): Pt[] =>
+      pts.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+    const abs = (pts: Array<[number, number]>, ox = ex, oy = ey, k = 1): Pt[] =>
+      pts.map(([x, y]) => ({ x: ox + x * k, y: oy + y * k }));
+    // A pointed leaf along an axis (angle in degrees, 0 = pointing right).
+    const lens = (x: number, y: number, len: number, wid: number, deg: number): Pt[] => {
+      const a = (deg * Math.PI) / 180;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const n = 10;
+      const out: Pt[] = [];
+      const at = (u: number, v: number): Pt => ({
+        x: x + u * ca - v * sa,
+        y: y + u * sa + v * ca,
+      });
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        out.push(at(-len / 2 + len * t, (-wid / 2) * Math.sin(Math.PI * t) ** 0.8));
+      }
+      for (let i = n - 1; i > 0; i--) {
+        const t = i / n;
+        out.push(at(-len / 2 + len * t, (wid / 2) * Math.sin(Math.PI * t) ** 0.8));
+      }
+      return out;
+    };
+
     g.clear();
-    g.lineStyle(4, tint, alpha);
-    g.strokeEllipse(cx - 25, cy - 12, 20, 24);
-    g.strokeEllipse(cx + 25, cy - 12, 20, 24);
-    g.fillStyle(tint, alpha);
-    g.fillRoundedRect(cx - 22, cy - 26, 44, 34, 10);
-    g.fillRect(cx - 5, cy + 8, 10, 10);
-    g.fillRoundedRect(cx - 18, cy + 18, 36, 8, 3);
-    g.fillStyle(earned ? 0xffffff : 0x1b2437, earned ? 0.85 : 0.5);
-    g.fillCircle(cx, cy - 10, 7);
+
+    // Glow behind earned trophies.
+    if (earned) {
+      g.fillStyle(color, 0.05);
+      g.fillCircle(ex, ey, 38);
+      g.fillStyle(color, 0.07);
+      g.fillCircle(ex, ey, 30);
+      g.fillStyle(color, 0.1);
+      g.fillCircle(ex, ey, 22);
+    }
+
+    // Plinth: two brass steps.
+    g.fillStyle(metalD, 1);
+    g.fillRoundedRect(cx - 22, cy + 19, 44, 9, 3);
+    g.fillStyle(metalM, 1);
+    g.fillRoundedRect(cx - 22, cy + 18, 44, 8, 3);
+    g.fillStyle(metalL, earned ? 0.9 : 0.6);
+    g.fillRect(cx - 19, cy + 18, 38, 1.5);
+    g.fillStyle(metalD, 1);
+    g.fillRoundedRect(cx - 15, cy + 12, 30, 8, 2);
+    g.fillStyle(metalM, 1);
+    g.fillRoundedRect(cx - 15, cy + 11, 30, 7, 2);
+    g.fillStyle(metalL, earned ? 0.8 : 0.5);
+    g.fillRect(cx - 13, cy + 11, 26, 1.2);
+
+    switch (element) {
+      case 'electric': {
+        const hex: Array<[number, number]> = [];
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i - Math.PI / 2;
+          hex.push([Math.cos(a) * 19, Math.sin(a) * 19]);
+        }
+        const outer = abs(hex);
+        poly(shift(outer, 1, 2), 0x000000, 0.35);
+        poly(outer, metalM);
+        outline(outer, 1.5, metalD);
+        poly(abs(hex, ex, ey, 0.82), bodyD);
+        const bolt = abs([
+          [4, -14],
+          [-8, 2],
+          [-1, 2],
+          [-4, 14],
+          [8, -3],
+          [1, -3],
+        ]);
+        poly(bolt, body);
+        poly(
+          abs([
+            [4, -14],
+            [-8, 2],
+            [-2, 2],
+          ]),
+          bodyL,
+          0.9,
+        );
+        outline(bolt, 1, metalL);
+        break;
+      }
+      case 'water': {
+        // A chalice cradling a droplet.
+        const cup = abs([
+          [-18, -2],
+          [18, -2],
+          [14, 8],
+          [4, 12],
+          [-4, 12],
+          [-14, 8],
+        ]);
+        poly(shift(cup, 1, 2), 0x000000, 0.35);
+        poly(cup, metalM);
+        outline(cup, 1.5, metalD);
+        poly(
+          abs([
+            [-14, -1],
+            [-6, -1],
+            [-3, 9],
+            [-8, 8],
+          ]),
+          metalL,
+          earned ? 0.7 : 0.4,
+        );
+        const drop: Pt[] = [{ x: ex, y: ey - 20 }];
+        const cyD = ey - 3;
+        const start = (-34.4 * Math.PI) / 180;
+        const end = (214.4 * Math.PI) / 180;
+        for (let i = 0; i <= 14; i++) {
+          const a = start + ((end - start) * i) / 14;
+          drop.push({ x: ex + Math.cos(a) * 12, y: cyD + Math.sin(a) * 12 });
+        }
+        poly(drop, body);
+        outline(drop, 1.2, metalD);
+        poly(
+          abs([
+            [-6, -4],
+            [-3, -4],
+            [-3, 4],
+            [-7, 2],
+          ]),
+          bodyL,
+          0.85,
+        );
+        break;
+      }
+      case 'fire': {
+        const flame = abs([
+          [1, -26],
+          [8, -14],
+          [14, -2],
+          [12, 8],
+          [4, 14],
+          [-6, 14],
+          [-13, 8],
+          [-14, -2],
+          [-8, -9],
+          [-4, -14],
+          [-3, -20],
+        ]);
+        poly(shift(flame, 1, 2), 0x000000, 0.35);
+        poly(flame, bodyD);
+        poly(
+          abs(
+            flame.map((p) => [p.x - ex, p.y - ey] as [number, number]),
+            ex,
+            ey,
+            0.88,
+          ),
+          body,
+        );
+        outline(flame, 1.3, metalD);
+        const core = abs(
+          [
+            [1, -10],
+            [6, -1],
+            [6, 7],
+            [0, 11],
+            [-6, 7],
+            [-6, 0],
+            [-2, -4],
+          ],
+          ex,
+          ey + 2,
+        );
+        poly(core, earned ? lerp(color, 0xffe680, 0.7) : bodyL);
+        poly(
+          abs(
+            [
+              [0, -4],
+              [3, 2],
+              [2, 7],
+              [-2, 7],
+              [-3, 2],
+            ],
+            ex,
+            ey + 3,
+          ),
+          earned ? 0xfff6c8 : bodyL,
+          0.9,
+        );
+        break;
+      }
+      case 'crystal': {
+        const mid = abs([
+          [0, -27],
+          [-10, -14],
+          [-10, 6],
+          [0, 13],
+          [10, 6],
+          [10, -14],
+        ]);
+        poly(shift(mid, 1, 2), 0x000000, 0.35);
+        const left = abs(
+          [
+            [-18, -3],
+            [-12, -12],
+            [-6, -3],
+            [-6, 8],
+            [-17, 8],
+          ],
+          ex - 3,
+          ey + 1,
+        );
+        const right = abs(
+          [
+            [18, -3],
+            [12, -12],
+            [6, -3],
+            [6, 8],
+            [17, 8],
+          ],
+          ex + 3,
+          ey + 1,
+        );
+        poly(left, bodyD);
+        poly(right, bodyD);
+        poly(
+          abs([
+            [0, -27],
+            [-10, -14],
+            [-10, 6],
+            [0, 13],
+          ]),
+          body,
+        );
+        poly(
+          abs([
+            [0, -27],
+            [10, -14],
+            [10, 6],
+            [0, 13],
+          ]),
+          bodyL,
+        );
+        poly(
+          abs([
+            [0, -27],
+            [-10, -14],
+            [0, -10],
+          ]),
+          earned ? 0xffffff : bodyL,
+          earned ? 0.5 : 0.4,
+        );
+        outline(mid, 1.3, metalD);
+        outline(left, 1, metalD);
+        outline(right, 1, metalD);
+        g.lineStyle(1, metalL, earned ? 0.7 : 0.4);
+        g.lineBetween(ex, ey - 27, ex, ey + 13);
+        break;
+      }
+      case 'shadow': {
+        // A crescent moon with a few stars.
+        const R = 19;
+        const r = 15;
+        const dx = 9;
+        const outerPts: Pt[] = [];
+        const innerPts: Pt[] = [];
+        for (let i = 0; i <= 48; i++) {
+          const t = (i / 48) * Math.PI * 2;
+          const px = Math.cos(t) * R;
+          const py = Math.sin(t) * R;
+          if (Math.hypot(px - dx, py) > r) outerPts.push({ x: ex + px, y: ey + py });
+          const qx = dx + Math.cos(t) * r;
+          const qy = Math.sin(t) * r;
+          if (Math.hypot(qx, qy) < R) innerPts.push({ x: ex + qx, y: ey + qy });
+        }
+        innerPts.sort((a, b) => a.y - b.y);
+        const moon = [...outerPts, ...innerPts];
+        poly(shift(moon, 1, 2), 0x000000, 0.35);
+        poly(moon, body);
+        poly(
+          moon.filter((p) => p.x < ex - 4),
+          bodyL,
+          0.55,
+        );
+        outline(moon, 1.3, metalD);
+        const star = (sx: number, sy: number, k: number): void => {
+          const pts = abs(
+            [
+              [0, -4],
+              [1, -1],
+              [4, 0],
+              [1, 1],
+              [0, 4],
+              [-1, 1],
+              [-4, 0],
+              [-1, -1],
+            ],
+            sx,
+            sy,
+            k,
+          );
+          poly(pts, earned ? 0xf4efe2 : bodyL);
+        };
+        star(ex + 12, ey - 10, 1);
+        star(ex + 16, ey + 3, 0.7);
+        star(ex + 6, ey + 8, 0.5);
+        break;
+      }
+      default: {
+        // Grass: a sprig of three leaves on a stem.
+        g.fillStyle(metalD, 1);
+        g.fillRect(ex - 1.5, ey, 3, 14);
+        const centre = lens(ex, ey - 8, 36, 15, -90);
+        const leftLeaf = lens(ex - 9, ey - 1, 28, 12, -148);
+        const rightLeaf = lens(ex + 9, ey - 1, 28, 12, -32);
+        for (const leaf of [leftLeaf, rightLeaf, centre]) {
+          poly(shift(leaf, 1, 2), 0x000000, 0.3);
+        }
+        poly(leftLeaf, bodyD);
+        poly(rightLeaf, bodyD);
+        poly(centre, body);
+        poly(lens(ex - 9, ey - 2, 22, 7, -148), body);
+        poly(lens(ex + 9, ey - 2, 22, 7, -32), body);
+        poly(lens(ex - 2, ey - 10, 24, 6, -90), bodyL, 0.8);
+        outline(leftLeaf, 1, metalD);
+        outline(rightLeaf, 1, metalD);
+        outline(centre, 1.2, metalD);
+        break;
+      }
+    }
+
+    // The gem set into the plinth, in the trophy's colour.
+    const gy = cy + 22;
+    const gem: Pt[] = [
+      { x: cx, y: gy - 5 },
+      { x: cx + 6, y: gy },
+      { x: cx, y: gy + 5 },
+      { x: cx - 6, y: gy },
+    ];
+    g.fillStyle(metalD, 1);
+    g.fillCircle(cx, gy, 7);
+    g.lineStyle(1.5, metalL, earned ? 0.9 : 0.5);
+    g.strokeCircle(cx, gy, 7);
+    poly(gem, earned ? color : 0x2a3550);
+    poly(
+      [
+        { x: cx, y: gy - 5 },
+        { x: cx + 6, y: gy },
+        { x: cx, y: gy },
+      ],
+      earned ? lerp(color, 0xffffff, 0.5) : 0x35425f,
+    );
+    poly(
+      [
+        { x: cx, y: gy - 5 },
+        { x: cx - 6, y: gy },
+        { x: cx - 1, y: gy - 1 },
+      ],
+      earned ? 0xffffff : 0x3d4b6b,
+      earned ? 0.65 : 0.5,
+    );
+    if (earned) {
+      // Sparkles around the earned trophy.
+      g.fillStyle(0xffffff, 0.9);
+      g.fillRect(cx + 26, cy - 24, 1.5, 7);
+      g.fillRect(cx + 23.25, cy - 21.25, 7, 1.5);
+      g.fillStyle(0xffffff, 0.7);
+      g.fillRect(cx - 28, cy - 8, 1, 5);
+      g.fillRect(cx - 30, cy - 6, 5, 1);
+    }
   }
 
   private refreshTrophies(): void {
@@ -490,7 +878,7 @@ export class JournalScene extends Phaser.Scene {
       const earned = Game.state.hasSigil(trophy.id);
       const selected = index === this.trophyCursor;
       this.drawCardBg(card.bg, card.x, card.y, trophy.color, earned, selected);
-      this.drawTrophy(card.cup, card.cx, card.cy - 16, trophy.color, earned);
+      this.drawTrophy(card.cup, card.cx, card.cy - 16, trophy.color, earned, trophy.element);
       card.name.setColor(earned ? '#f2f6ff' : '#7c8aa5');
       card.keeper.setColor(earned ? '#9fb0cc' : '#5c6b85');
       card.virtue.setColor(earned ? '#ffd60a' : '#5c6b85');

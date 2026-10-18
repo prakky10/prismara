@@ -3,6 +3,7 @@
  */
 
 import Phaser from 'phaser';
+import { COLORS, FONTS, mixColor } from './Theme';
 import { ELEMENT_INFO, type MoveType } from '../data/types';
 
 export class TypeBadge extends Phaser.GameObjects.Container {
@@ -19,10 +20,10 @@ export class TypeBadge extends Phaser.GameObjects.Container {
 
     this.textObject = scene.add
       .text(0, 0, showGlyph ? `${info.glyph} ${info.name}` : info.name, {
-        fontFamily: '"Nunito", system-ui, sans-serif',
+        fontFamily: FONTS.display,
         fontSize: '12px',
         color: '#0b1020',
-        fontStyle: 'bold',
+        fontStyle: '700',
       })
       .setOrigin(0.5, 0.5);
     this.add(this.textObject);
@@ -34,11 +35,18 @@ export class TypeBadge extends Phaser.GameObjects.Container {
 
   private draw(color: number): void {
     const h = 20;
-    this.bg.clear();
-    this.bg.fillStyle(color, 1);
-    this.bg.fillRoundedRect(-this.badgeWidth / 2, -h / 2, this.badgeWidth, h, 10);
-    this.bg.lineStyle(1.5, 0xffffff, 0.35);
-    this.bg.strokeRoundedRect(-this.badgeWidth / 2, -h / 2, this.badgeWidth, h, 10);
+    const w = this.badgeWidth;
+    const bg = this.bg;
+    bg.clear();
+    // Soft shadow, darker lower half, bright upper half and a rim.
+    bg.fillStyle(COLORS.shadow, 0.35);
+    bg.fillRoundedRect(-w / 2, -h / 2 + 2, w, h, 10);
+    bg.fillStyle(mixColor(color, 0x000000, 0.18), 1);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 10);
+    bg.fillStyle(mixColor(color, 0xffffff, 0.22), 1);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h * 0.55, { tl: 10, tr: 10, bl: 0, br: 0 });
+    bg.lineStyle(1.5, mixColor(color, 0xffffff, 0.55), 0.8);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 10);
   }
 
   get width2(): number {
@@ -58,7 +66,12 @@ export class TypeBadge extends Phaser.GameObjects.Container {
 }
 
 /** A tiny coloured dot, for compact lists. */
-export function typeDot(scene: Phaser.Scene, x: number, y: number, type: MoveType): Phaser.GameObjects.Arc {
+export function typeDot(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  type: MoveType,
+): Phaser.GameObjects.Arc {
   const dot = scene.add.circle(x, y, 4, ELEMENT_INFO[type].color, 1);
   dot.setStrokeStyle(1, 0xffffff, 0.4);
   return dot;

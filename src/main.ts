@@ -81,44 +81,64 @@ const config: Phaser.Types.Core.GameConfig = {
   ],
 };
 
-export const game = new Phaser.Game(config);
+// Phaser bakes text into textures at creation time, so wait (briefly) for the
+// web fonts before the first scene draws anything.
+async function fontsReady(): Promise<void> {
+  try {
+    await Promise.race([
+      Promise.all([
+        document.fonts.load('700 16px "Nunito"'),
+        document.fonts.load('700 16px "Baloo 2"'),
+      ]).then(() => document.fonts.ready),
+      new Promise((resolve) => window.setTimeout(resolve, 2500)),
+    ]);
+  } catch {
+    /* fall back to system fonts */
+  }
+}
 
-// Dev-only introspection: a console handle for the running game and a
-// `data-scene` attribute on <body> that always names the active scene. Both
-// make debugging (and the headless smoke test) much easier.
-if (import.meta.env.DEV) {
-  (window as unknown as { __PRISMARA__?: Phaser.Game }).__PRISMARA__ = game;
+function boot(): void {
+  const game = new Phaser.Game(config);
+
+  // Dev-only introspection: a console handle for the running game and a
+  // `data-scene` attribute on <body> that always names the active scene. Both
+  // make debugging (and the headless smoke test) much easier.
+  if (import.meta.env.DEV) {
+    (window as unknown as { __PRISMARA__?: Phaser.Game }).__PRISMARA__ = game;
+    game.events.once(Phaser.Core.Events.READY, () => {
+      for (const scene of game.scene.scenes) {
+        scene.events.on(Phaser.Scenes.Events.START, () => {
+          document.body.dataset.scene = scene.scene.key;
+        });
+        scene.events.on(Phaser.Scenes.Events.RESUME, () => {
+          document.body.dataset.scene = scene.scene.key;
+        });
+      }
+    });
+  }
+
+  // Hide the HTML splash once the game has booted.
   game.events.once(Phaser.Core.Events.READY, () => {
-    for (const scene of game.scene.scenes) {
-      scene.events.on(Phaser.Scenes.Events.START, () => {
-        document.body.dataset.scene = scene.scene.key;
-      });
-      scene.events.on(Phaser.Scenes.Events.RESUME, () => {
-        document.body.dataset.scene = scene.scene.key;
-      });
+    const splash = document.getElementById('boot-splash');
+    if (splash) {
+      splash.classList.add('hidden');
+      window.setTimeout(() => splash.remove(), 600);
     }
+  });
+
+  // If anything throws during boot, surface it in the splash instead of a blank
+  // screen so the failure is diagnosable.
+  const splash = document.getElementById('boot-splash');
+  const status = document.getElementById('boot-status');
+  window.addEventListener('error', (event) => {
+    if (!splash || !status) return;
+    splash.classList.remove('hidden');
+    splash.classList.add('failed');
+    status.textContent = `Prismara failed to start: ${event.message}`;
   });
 }
 
-// Hide the HTML splash once the game has booted.
-game.events.once(Phaser.Core.Events.READY, () => {
-  const splash = document.getElementById('boot-splash');
-  if (splash) {
-    splash.classList.add('hidden');
-    window.setTimeout(() => splash.remove(), 600);
-  }
-});
-
-// If anything throws during boot, surface it in the splash instead of a blank
-// screen so the failure is diagnosable.
-const splash = document.getElementById('boot-splash');
-const status = document.getElementById('boot-status');
-window.addEventListener('error', (event) => {
-  if (!splash || !status) return;
-  splash.classList.remove('hidden');
-  splash.classList.add('failed');
-  status.textContent = `Prismara failed to start: ${event.message}`;
-});
+void fontsReady().then(boot);
 
 document.title = 'PRISMARA — The Last Light';
 
