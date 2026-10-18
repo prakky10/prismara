@@ -120,6 +120,65 @@ describe('story script data', () => {
   });
 });
 
+interface Authored {
+  where: string;
+  text: string;
+  kind: 'scene' | 'trainer' | 'npc' | 'sign';
+}
+
+/** Every authored string a text box can show, tagged with where it lives. */
+function authoredDialogue(): Authored[] {
+  const out: Authored[] = [];
+  const add = (where: string, kind: Authored['kind'], texts: readonly string[]): void => {
+    for (const text of texts) out.push({ where, kind, text });
+  };
+  for (const scene of SCENES) add(scene.id, 'scene', scene.lines);
+  for (const [id, trainer] of Object.entries(TRAINERS)) {
+    const d = trainer.dialogue;
+    add(`trainer ${id}`, 'trainer', [...d.intro, ...d.defeat, ...(d.victory ?? []), ...(d.after ?? [])]);
+  }
+  for (let i = 1; i <= 4; i++) {
+    const d = rivalDialogue(i);
+    add(`rival battle ${i}`, 'trainer', [...d.intro, ...d.defeat, ...(d.after ?? [])]);
+  }
+  for (const map of Object.values(MAPS)) {
+    for (const npc of map.npcs) {
+      const kind = npc.kind === 'sign' ? 'sign' : 'npc';
+      add(`${map.id}/${npc.id}`, kind, [...(npc.dialogue ?? []), ...(npc.chatter ?? [])]);
+    }
+  }
+  return out;
+}
+
+describe('dialogue data across the game', () => {
+  // Long enough to cover any name the naming screen might take.
+  const WIDEST = { playerName: 'Maximilian', rivalName: 'Bartholomew' };
+  const MAX_PAGE_CHARS = 100;
+
+  it('keeps every authored line within one text-box page, whatever the names', () => {
+    for (const { where, text } of authoredDialogue()) {
+      const shown = parseLine(formatLine(text, WIDEST)).text;
+      expect(shown.length, `${where}: ${shown}`).toBeLessThanOrEqual(MAX_PAGE_CHARS);
+    }
+  });
+
+  it('tags trainer and NPC lines only with speakers in KNOWN_SPEAKERS', () => {
+    for (const { where, text, kind } of authoredDialogue()) {
+      if (kind !== 'trainer' && kind !== 'npc') continue;
+      const prefix = /^([^:()]+?)(?: \([^)]*\))?: /.exec(text);
+      if (!prefix) continue;
+      expect(KNOWN_SPEAKERS.has(prefix[1]), `${where}: ${text}`).toBe(true);
+    }
+  });
+
+  it('contains none of the retired names or contradictions', () => {
+    const retired = /Aunt Mira|frozen north|wanderer|EMBELEAF|sky-crystal|shattered long ago/;
+    for (const { where, text } of authoredDialogue()) {
+      expect(text, where).not.toMatch(retired);
+    }
+  });
+});
+
 describe('scene runner', () => {
   it('marks a scene done and sets its flags, so it plays only once', () => {
     const state = freshState();
