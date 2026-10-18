@@ -1,67 +1,85 @@
 # Prismara: The Last Light
 
-An original 3D creature adventure across 37 maps, with 40 creatures, six Keeper Trophies, five journal quests, and a story finale at Prism Summit.
+An original creature-collecting adventure for the browser. You catch and train 40 original creatures, cross a 3D island region, win six Keeper Trophies and stop Team Eclipse before the last beacon goes dark.
 
-Three.js renders the world, walking characters, creature models and biome battle arenas. Warm lighting, shadows, fog and a lighthouse title scene give the adventure depth. Phaser handles gameplay and the interface. A browser with WebGL support is required.
+Built with **TypeScript**, **Phaser 3** (gameplay, input, UI) and **Three.js** (the 3D world, creatures and battle arenas). Every model, texture, sound effect and music track is generated in code, so the project ships no art or audio files.
+
+![Title screen](docs/screenshots/title.png)
+
+| Overworld | Battle |
+| --- | --- |
+| ![Overworld](docs/screenshots/overworld.png) | ![Battle](docs/screenshots/battle.png) |
+
+## The story
+
+Your mother kept the last lighthouse on the isles until the night the sky prism fractured, and she vanished with its light. With her waterlogged journal and your partner creature, you set out across Prismara to wake six sleeping beacons. Your friend Kai is chasing a brother who joined Team Eclipse, and Eclipse's leader Voss wants to freeze the world in twilight so nothing can ever break again.
+
+## Features
+
+- **40 creatures** across six elements, with evolutions, abilities, shinies and three legendaries
+- **37 maps**: towns, routes, a forest, caves, a volcano, ruins and a summit, with field abilities that open new paths
+- **A turn-based battle engine** with type matchups, status conditions, weather, stat stages, crits, trainer AI tiers and catching
+- **Six Keeper Trials**, rival battles, a villain team and a Champion finale
+- **A Field Journal** with chapter objectives, side quests and rewards, a trophy cabinet and a region atlas
+- **10 capture orbs** with situational bonuses (night, water, first turn, timer and more)
+- **Day/night cycle**, shops, healing centers, PC storage, a creature dex and evolution scenes
+- **Autosave plus three manual save slots**, stored in the browser
+- **Procedural audio**: chiptune music sequencer, synthesized sound effects and generated creature cries
+- **Accessibility settings**: reduced effects, toggleable damage numbers and battle animations, and touch controls
 
 ## Play locally
 
-```powershell
+Requires Node.js 18+ and a browser with WebGL.
+
+```bash
+git clone https://github.com/prakky10/prismara.git
+cd prismara
 npm install
-npm run dev -- --host 127.0.0.1 --port 5175 --strictPort
+npm run dev
 ```
 
-Open http://127.0.0.1:5175 in Chrome. Saves stay in that browser and origin: use the same host and port to continue. The title menu offers the autosave and three manual slots.
+Open the URL Vite prints (default http://localhost:5175). Saves live in that browser and origin, so use the same host and port to continue a game.
 
-| Action | Controls |
+### Controls
+
+| Action | Keys |
 | --- | --- |
-| Move / navigate | Arrow keys or WASD |
+| Move | Arrow keys / WASD |
+| Run | Shift |
 | Talk / confirm | Z or Enter |
 | Back | X or Escape |
-| Pause | C or Tab |
-| Run | Shift |
-| Journal tabs | Left / right, or click a tab |
+| Menu | C or Tab |
 
-Choose a partner, head north from Emberleaf, and follow the objective in the HUD and Field Journal. Clear Team Eclipse from Whisperwood before challenging Ivy; secure Voltspire's power supply before Volta. Healing Centers restore your team. Shops sell capture gear and supplies.
+## Project layout
 
-## Keeper Trophies
-
-| Trophy | Keeper | Place | Field ability |
-| --- | --- | --- | --- |
-| Verdant | Ivy | Thistlebrook | Cut |
-| Storm | Volta | Voltspire | Magnet |
-| Tide | Marin | Tidehaven | Surf |
-| Ember | Blaze | Ashfall | Light |
-| Facet | Opal | Geode Hollow | Smash |
-| Twilight | Raven | Duskmoor | Night Sight |
-
-Each Trophy carries a keeper's memory. View the cabinet in **Journal & Trophies**. The journal also tracks quests with claimable rewards and a region atlas. After the six Trials, stop the Eclipse ritual and challenge Aurelia.
-
-## Capture gear
-
-Weaken wild creatures or inflict status conditions to improve capture odds. Every throw costs one ball, including failed throws. Trainer creatures cannot be captured.
-
-| Ball | Specialty |
-| --- | --- |
-| Prism Orb | Standard capture |
-| Great Prism | 1.5× bonus |
-| Ultra Prism | 2× bonus |
-| Dusk Orb | 3× at night or in caves |
-| Luxe Orb | 2×, plus friendship |
-| Tide Orb | 3× against Water |
-| Bloom Orb | 3× against Grass |
-| Quick Orb | 4× on the first turn |
-| Timer Orb | Improves over time, up to 4× |
-| Nest Orb | 3× against creatures at level 15 or below |
-| Master Prism | Guaranteed capture of a living wild creature; finale reward |
-
-## Development checks
-
-```powershell
-npm test
-npm run typecheck
-npm run lint
-npm run build
+```
+src/
+  audio/      music sequencer, SFX synth, creature cries
+  battle/     pure battle engine: damage, status, weather, AI, capture, turn resolution
+  core/       game state, save system, input, seeded RNG, clock
+  data/       creatures, moves, abilities, items, type chart
+  render/     Three.js world/creature/arena rendering, tile painting, move VFX
+  scenes/     Phaser scenes (title, overworld, battle, menus...)
+    battle/     battle event playback, status panels, menu builders
+    overworld/  overworld HUD
+  ui/         panels, menus, text boxes, HP bars, popups
+  world/      maps (one module per region), campaign, trainers, encounters, field rules
+tests/        Vitest suites for the engine, campaign, saves and world
+scripts/      world audit tooling
 ```
 
-`BUILD_LOG.md` records worker models and review rounds. `QA_NOTES.md` records acceptance coverage. Original sources are retained under `artifacts/baseline`; isolated worker handoffs and the integration candidate live under `artifacts/`.
+The battle engine and world rules are plain TypeScript with no Phaser dependency. Scenes only turn their results into animation, which keeps the rules unit-testable.
+
+## Development
+
+```bash
+npm test            # unit tests (Vitest)
+npm run typecheck   # strict TypeScript
+npm run lint        # ESLint
+npm run build       # typecheck + production build into dist/
+npm run audit:world # check map warps and connectivity
+```
+
+## Credits
+
+Prismara is a fan-made, original game inspired by the creature-collecting RPG genre. All creatures, characters, places and story are original to this project. It is not affiliated with or endorsed by Nintendo, Game Freak or The Pokémon Company.
