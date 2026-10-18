@@ -2,7 +2,7 @@
 
 Writing document for the implementer. Every map id, trainer id and creature named here already exists. Anything new (NPCs, flags, scenes) is listed in Section 9.
 
-Placeholders: `{player}` is the player's name, `{rival}` is the companion's name (default Kai). Dialogue lines are written to fit one text-box page (90 characters or fewer). A line with no speaker is narration.
+Placeholders: `{player}` is the player's name, `{rival}` is the companion's name (default Kai). Dialogue lines are written to fit one text-box page (100 characters or fewer; `tests/story.test.ts` enforces it). A line with no speaker is narration.
 
 ---
 
@@ -34,7 +34,7 @@ Placeholders: `{player}` is the player's name, `{rival}` is the companion's name
 
 **Aurelia (Champion, Head Keeper).** Regal, warm, precise. Edda's and Voss's old teacher. Want: an unbreakable beacon so that no keeper would ever fail again. Secret: she designed and led the Concord, signalled the lighthouse, and then ordered all keepers to stay silent, and became Champion so she could guard the Summit and the truth. She is also the veiled Pilgrim at Cinder Peak. Arc: perfect host -> hidden penitent -> confession -> gives up the Lens freely and agrees to answer for it publicly. Her battle is a test of whether the player can carry the truth without breaking, then she asks for forgiveness.
 
-**Prof. Lumen (Emberleaf Lab).** Gentle, scatterbrained scholar of the sky prism; gives out starters. Want: to repair the prism. Secret: he wrote the Concord's mathematics; Edda warned him it would fail, and he said he was "nearly sure". He withheld the last pages of her journal out of shame. Arc: dithering helper -> confession at Geode Hollow -> opens the lab's archive to everyone at the end.
+**Prof. Lumen (Emberleaf Lab).** Gentle, scatterbrained scholar of the sky prism; hands over the journal (the starter is picked in the intro). Want: to repair the prism. Secret: he wrote the Concord's mathematics; Edda warned him it would fail, and he said he was "nearly sure". He withheld the last pages of her journal out of shame. Arc: dithering helper -> confession at Geode Hollow -> opens the lab's archive to everyone at the end.
 
 **Aunt Wren.** (Replaces "Aunt Mira"; renamed to avoid clashing with trainer Mira.) Edda's sister-in-spirit and the player's guardian. Brisk, warm, funny. Her humor and grief are the home note. She is why the socks line becomes a callback in the epilogue, not a tonal clash.
 
@@ -43,7 +43,7 @@ Placeholders: `{player}` is the player's name, `{rival}` is the companion's name
 - **Volta (Storm, Resilience).** Blunt, practical. Piece: her logs show a timed pulse from the Summit at 11:58 pm; a boy with a lantern pin quietly left a breaker half open and saved her turbines.
 - **Marin (Tide, Flow).** Bold, salty. Piece: she ferried the beacon-glass crates; at dawn she pulled a sobbing boy from the surf (Soren) and handed him to a tall man in dusk-grey (Voss); she carried the journal ashore to Lumen.
 - **Blaze (Ember, Courage).** Gruff craftsman. Piece: he forged the Summit ring, knew it was too thin, and stayed silent; later he forged Voss's cold-iron lantern without asking why.
-- **Opal (Facet, Clarity).** Cool, exact. Piece: her Record Wall shows the Concord and names who signalled; she carved it despite the order of silence.
+- **Opal (Facet, Clarity).** Cool, exact. Piece: her Record Wall shows the Concord and a tall figure in gold who signals, face hidden; she carved it despite the order of silence.
 - **Raven (Twilight, Remembrance).** Soft-spoken poet; Voss's former student and the Twilight Keeper now. Piece: she knows Edda is inside the prism and that Voss is holding her.
 
 **Ace Nerys.** Route 7 trainer, once Aurelia's pupil. Her one job is to show that something has changed in the Champion.
@@ -68,8 +68,8 @@ Placeholders: `{player}` is the player's name, `{rival}` is the companion's name
 ### Twists and where each is foreshadowed
 
 **Twist A: The fracture was the Keepers' own doing (the Concord), not an invasion or accident.**
-- Foreshadowed: Ivy's grey wood and the shoot (Ch2); Volta's "easy current" (Ch4); Marin's silence about the crates (Ch5); Blaze's cold forge "shared one heart" (Ch6); Lumen going white at the journal; Aurelia's intro line "I kept this beacon the night your mother vanished"; journal pages 1-5 ("too much", "cannot be forced", "it only has to hold once").
-- Revealed: Opal's Record Wall (Ch7).
+- Foreshadowed: Ivy's grey wood and the shoot (Ch2); Volta's "easy current" (Ch4); Aurelia on the Voltspire radio, "The night Edda was lost, I kept a lamp burning on the Summit. Some nights I wonder if I should have put it out." (Ch4, scene `c4-summit-broadcast`); Marin's silence about the crates (Ch5); Blaze's cold forge "shared one heart" (Ch6); journal pages 1-5 ("too much", "cannot be forced", "it only has to hold once").
+- Evidence, not confession: Opal's Record Wall (Ch7) shows the Concord and a tall figure in gold giving the signal, face hidden. Aurelia's full confession comes at the Finale.
 
 **Twist B: Edda is alive inside the prism, and Voss's twilight is what keeps her from fading. Voss is a protector first and a tyrant never.**
 - Foreshadowed: the grunt "keep the glass warm" (Ch3); grunt "He talks to the glass like it can hear" (Ch3); orders to spare the player (Ch1, Ch3); Blaze's cold-iron lantern and the man who cried (Ch6); Raven's original Trophy memory line "the cold that Voss mistook for mercy"; the altar "hums like a held breath".
@@ -80,11 +80,12 @@ Placeholders: `{player}` is the player's name, `{rival}` is the companion's name
 - Revealed: Soren confesses at the altar (Ch9).
 
 **Twist D (smaller): The veiled Pilgrim, Aurelia herself.**
-- Foreshadowed: the Pilgrim's remarks (Ch6); Nerys saying Aurelia "stands like she's guarding a grave" (Ch7); the Summit broadcast (Ch4).
-- Revealed: Aurelia's confession (Finale).
+- Foreshadowed: the Pilgrim's remarks (Ch6); Nerys saying Aurelia "stands like she's guarding a grave" (Ch7); the Summit broadcast (Ch4); the tall figure in gold on Opal's Record Wall, whose face is not shown (Ch7).
+- Champion intro (Finale) only tests the player and does not confess.
+- Revealed: Aurelia's full confession (Finale, `f-summit-entry`: "It was me. I raised the signal myself.").
 
 **Twist E (smaller): Lumen kept the last pages of the journal.**
-- Foreshadowed: Marin: "he went white as foam" (Ch5). Revealed: Ch7.
+- Foreshadowed: on screen in the prologue, "Lumen's hand stops on the journal's torn edge" (`p-lumen-journal`); Marin: "he went white as foam" (Ch5). Revealed: Ch7.
 
 ---
 
@@ -103,7 +104,8 @@ Placeholders: `{player}` is the player's name, `{rival}` is the companion's name
 
 **Goal.** Establish the missing lighthouse, home, Lumen's journal, the starter, and Kai.
 **Maps.** `emberleaf-town`, `lumen-lab`, `route-1`.
-**Beats.** The lighthouse is dark -> Aunt Wren sends you to Lumen -> Kai is already there, arguing -> starter and journal -> first rival battle on Route 1 that plants Soren's name.
+**Beats.** The lighthouse is dark -> Aunt Wren sends you to Lumen -> Kai is already there, arguing -> journal -> first rival battle on Route 1 that plants Soren's name.
+**Starter.** The partner is chosen in the intro (`IntroScene.ts`: naming, then the three-starter screen, then confirm), before the player reaches Emberleaf. Lumen's lab never offers a starter; the scenes below only refer to the partner already chosen.
 
 **Scene P1: `p-town-dawn`**
 - Trigger: ENTRY `emberleaf-town`, first visit (after intro).
@@ -131,26 +133,27 @@ Shelves of prism glass hum softly. A cracked lens sits under a green lamp.
 Prof. Lumen: Ah. Edda's child. Come in, mind the cables.
 {rival}: Professor, any word? About Soren? Anything at all?
 Prof. Lumen: Nothing new, I am sorry. Eclipse sends no letters.
-{rival}: Then I will ask them myself. I am taking my partner first.
+{rival}: Then I will ask them myself. I already have my partner.
 {rival}: Don't peek at which one, {player}.
 ```
 
 **Scene P4: `p-lumen-offer`**
-- Trigger: TALK `professor-lumen` before the starter is chosen (replaces his current lines).
+- Trigger: TALK `professor-lumen`, first visit (before the journal is handed over).
 - Requires: `!has-journal`. Sets: none.
 ```
 Prof. Lumen: The sky prism fed six beacons, one for each element.
 Prof. Lumen: Last winter it cracked, and your mother vanished with its light.
 Prof. Lumen: Captain Marin found her journal on the tide. I have kept it safe.
-Prof. Lumen: The road is not safe. Take a partner. Three wait on the table.
+Prof. Lumen: The road is not safe. It is good that you have a partner.
 ```
 
 **Scene P5: `p-lumen-journal`**
-- Trigger: TALK `professor-lumen` after the starter is chosen, first time.
-- Requires: starter chosen, `!has-journal`. Sets: `has-journal`.
+- Trigger: TALK `professor-lumen`, chained straight after P4 on the same talk (`chain: true`).
+- Requires: `!has-journal`. Sets: `has-journal`.
 ```
-Prof. Lumen: A fine choice. Now, her journal. It is yours.
+Prof. Lumen: Your partner looks eager. Now, her journal. It is yours.
 Prof. Lumen: I have read it twice. I have kept it safe. That is all I have done.
+Lumen's hand stops on the journal's torn edge.
 You receive Edda's Journal.
 Page 1 is mostly blank. A line reads: "Six beacons. One keeper. Not enough hands."
 Prof. Lumen: {rival} left at dawn. He went north, very fast.
@@ -312,6 +315,8 @@ A clear, warm voice crackles over the city speakers.
 Aurelia (radio): People of Prismara, the Summit is listening. The Champion's door is open.
 Aurelia (radio): Keep to your homes after dark. The beacons will be restored.
 Aurelia (radio): Trust the Keepers. We will make this right.
+Aurelia (radio): The night Edda was lost, I kept a lamp burning on the Summit.
+Aurelia (radio): Some nights I wonder if I should have put it out.
 Voltspire Tech: She talks like she's guarding something instead of fixing it.
 ```
 
@@ -413,9 +418,9 @@ Repeat talk (after the scene): `Pilgrim: Go on. The beacons need you more than I
 ```
 Opal: Clarity is not always kind. Come. The Record Wall is yours to see.
 Opal presses a gem. The crystal fills with a silent memory of that night.
-Seven figures stand around the prism. Light climbs a brass ring.
-A tall woman in gold raises a lamp. It is Aurelia, the Champion.
-Opal: She signalled the lighthouse. A boy pulled the shutter. Six lights poured into one.
+Seven keepers stand around the prism. Light climbs a brass ring.
+A tall figure in gold stands apart and raises a lamp. Their face is lost in the glare.
+Opal: Someone signalled the lighthouse. A boy pulled the shutter. Six lights poured into one.
 Opal: That was the Concord. A rite to bind six lights into one flame.
 The elements flare, then turn on each other. The prism cracks like ice.
 Opal: They fought because they were forced to share. A fight, not a flood.
@@ -448,6 +453,7 @@ Nerys: I trained under Aurelia once. She stopped teaching a year ago.
 Nerys: Now she stands on the Summit like she is guarding a grave.
 Nerys: Go see. Then tell me I'm wrong.
 ```
+(Her trainer `after` line, section 8, is varied so the two do not repeat.)
 
 **Scene C7.4: `c7-rival-4-after`**
 - Trigger: AFTER `rival-4-defeated` (Route 7).
@@ -558,9 +564,9 @@ Snow falls upward here, toward a ring of six empty sockets.
 Aurelia stands before the altar, her back to you, lamp in hand.
 Aurelia: I wondered which of them would reach me. I hoped it would be you.
 Aurelia: Before we battle, you should know who ordered the Concord.
-Aurelia: It was me. Now show me you can carry that, without breaking.
+Aurelia: It was me. I raised the signal myself. Now show me you can carry that.
 ```
-(Battle follows.)
+(Battle follows. The Champion's own intro does not confess; it only tests the player.)
 
 **Scene F2: `f-aurelia-after`**
 - Trigger: AFTER `champion-aurelia` (sets `champion-defeated`).
@@ -710,7 +716,7 @@ Note: chapter 10 `done` should become `state.getFlag('edda-returned')` so the ep
   - After `edda-returned`: `Aunt Wren: She's home, and already bossing the lamp. I could cry.`
 - **Map `emberleaf-town`, npc `emberleaf-sign`.** Fix typo `EMBELEAF TOWN` -> `EMBERLEAF TOWN`. Keep the second line.
 - **Map `emberleaf-town`, new decor sign (optional).** At the headland path: `The Emberleaf Light. Keeper: Edda.` Before the Finale it is dark; after `edda-returned` it is lit.
-- **Map `lumen-lab`, npc `professor-lumen`.** Before the starter: scene P4. After the starter (repeat): `Prof. Lumen: Your partner looks eager. Check the journal now and then.` After `lumen-confessed`: `Prof. Lumen: I am trying to be braver than my math.` After `edda-returned`: scene E4.
+- **Map `lumen-lab`, npc `professor-lumen`.** Before the journal: scenes P4 and P5 (chained). With the journal but before `lumen-confessed` (repeat): `Prof. Lumen: Your partner looks eager. Check the journal now and then.` After `lumen-confessed`: `Prof. Lumen: I am trying to be braver than my math.` After `edda-returned`: scene E4.
 - **Map `lumen-lab`, npc `lab-aide`.** Add chatter: `The Professor hasn't slept since the fracture. He mutters about "nearly".`
 - **Map `emberleaf-house`, npc `house-gran`.** Replace lines with: `Gran: Edda drew every creature in her journal. She ran out of room on page one.` / `Gran: Sleep well. Heal at a Healing Center. And change your socks!` (This is where the socks line lives: it belongs to a grandmother, not a missing-mother scene.)
 - **Map `cinder-peak`, npc `cinder-sign`.** After `aurelia-confessed`: `Carved here: "When the sun is highest, the golden one wakes." A candle burns beneath it.` Keep the existing text before.
@@ -724,7 +730,7 @@ Note: chapter 10 `done` should become `state.getFlag('edda-returned')` so the ep
 - Replace `finaleLines` with the F2-F4 scenes; remove the old four-line finale.
 
 ### Trainer dialogue rewrites
-Lines are ≤ 90 characters. Keep trainer ids, teams and flags unchanged.
+Lines are ≤ 100 characters. Keep trainer ids, teams and flags unchanged.
 
 - **`eclipse-grunt-1`**
   - intro: `Voss says the twilight is a kindness.` / `Orders: slow Edda's child. No harm done.`
@@ -743,11 +749,11 @@ Lines are ≤ 90 characters. Keep trainer ids, teams and flags unchanged.
 - **`trial-volta`**, **`trial-marin`**, **`trial-blaze`**, **`trial-opal`**: no changes to battle lines; the new AFTER scenes carry the story. `trial-blaze` intro: `I forge steel all day and battle all night.` / `Show me the courage to walk into the dark.` (unchanged).
 - **`trial-raven`**: intro: `I write poems about the dark that nobody reads.` / `Show me you can remember what the twilight keeps.` defeat: `A verse worth keeping.` / `The Twilight Trophy is yours. Its remembrance grants Night Sight.` after: `Voss is waiting at the altar. Be gentle with him.`
 - **`champion-aurelia`**
-  - intro: `Six Trophies. One summit. I am the last test.` / `I led the Concord. I will tell you everything.` / `First, show me a heart that will not break.`
+  - intro: `Six Trophies. One summit. I am the last test.` / `Many come to this door with questions. Earn the right to ask them.` / `First, show me a heart that will not break.`
   - defeat: `Wonderful. Truly wonderful.` / `The Lens is yours. The last stair is open.`
   - victory (new): `Not yet. Rest, and try again.`
   - after: `The altar waits for your six Trophies.` / `After that, the door is open to every trainer.`
-- **`ace-nerys`**: after: `Aurelia stopped teaching a year ago. Go and see why.`
+- **`ace-nerys`**: after: `Ask her about that night. Her answer will tell you more than I can.`
 - **`rivalDialogue`** (use `{player}`/`{rival}`-style substitution; in code keep the template strings):
   - 1: intro: `{player}! You took a partner too?` / `Mine beats yours, obviously.` / `I have to be strong enough to find Soren.` defeat: `What?! Already?` / `Fine. I'll train twice as hard.` after: `Meet me in Whisperwood. Eclipse hides there.`
   - 2: intro: `You again! I have new teammates.` / `Soren would have loved a fight like this.` defeat: `No way... I still have a long way to go.` after: `Voltspire next. Soren always liked places with lights.`

@@ -125,7 +125,7 @@ export const TRAINERS: Record<string, TrainerDef> = {
     dialogue: {
       intro: ['I only battle trainers worth my time.', 'Impress me.'],
       defeat: ['...Impressive.', 'Take this as respect, not charity.'],
-      after: ['Aurelia stopped teaching a year ago. Go and see why.'],
+      after: ['Ask her about that night. Her answer will tell you more than I can.'],
     },
   },
 
@@ -284,7 +284,7 @@ export const TRAINERS: Record<string, TrainerDef> = {
     dialogue: {
       intro: [
         'Six Trophies. One summit. I am the last test.',
-        'I led the Concord. I will tell you everything.',
+        'Many come to this door with questions. Earn the right to ask them.',
         'First, show me a heart that will not break.',
       ],
       defeat: ['Wonderful. Truly wonderful.', 'The Lens is yours. The last stair is open.'],
